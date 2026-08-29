@@ -176,12 +176,15 @@ footer{border-top:1px solid var(--edge);padding-top:22px;font-size:.84rem;color:
     <p class="sub">Three ways to draw a satellite pass from the data SatPC32 already
     publishes. Not a tracker — the orbital maths is solved. This is the operating
     surface that isn't there yet.</p>
+    <p class="sub" style="font-size:.92rem;color:var(--label)">Every field below is a
+    real token from the live DDE feed, captured 28 Aug 2026:
+    <span class="mono" style="color:var(--ink-2)">SNRS-44 AZ19.3 EL-46.5 UP145966847
+    UMLSB DN435634488 DMUSB MA120.4 RR3.792985</span></p>
     <div class="meta">
-      <span class="tag">DDE @ 1 Hz</span>
-      <span class="tag">az / el</span>
-      <span class="tag">up + down freq</span>
-      <span class="tag">modes</span>
-      <span class="tag">G0JKN</span>
+      <span class="tag">SN</span><span class="tag">AZ</span><span class="tag">EL</span>
+      <span class="tag">UP UM</span><span class="tag">DN DM</span>
+      <span class="tag">MA</span><span class="tag">RR</span>
+      <span class="tag">II22TB</span>
     </div>
   </header>
 
@@ -233,22 +236,22 @@ footer{border-top:1px solid var(--edge);padding-top:22px;font-size:.84rem;color:
         </div>
 
         <div class="row">
-          <span class="k">Down</span>
-          <span class="v">435.638<small>MHz</small></span>
-          <span class="d">−2.1 kHz</span>
+          <span class="k">DN·DM</span>
+          <span class="v">435.634488<small>USB</small></span>
+          <span class="d neg">RR −3.79 km/s</span>
         </div>
         <div class="row">
-          <span class="k">Up</span>
-          <span class="v">145.966<small>MHz</small></span>
-          <span class="d neg">+0.7 kHz</span>
+          <span class="k">UP·UM</span>
+          <span class="v">145.966847<small>LSB</small></span>
+          <span class="d neg">closing</span>
         </div>
         <div class="row">
-          <span class="k">Bearing</span>
+          <span class="k">AZ·EL</span>
           <span class="v">132°<small>az</small> &nbsp; 44°<small>el</small></span>
           <span class="d">rotor 131°</span>
         </div>
         <div class="row">
-          <span class="k">Elevation</span>
+          <span class="k">EL trace</span>
           <span class="v" style="width:100%">
             <span class="ladder" aria-label="Elevation profile across the pass, currently climbing before the peak">
               <i style="height:12%"></i><i style="height:24%"></i><i class="on" style="height:38%"></i>
@@ -257,16 +260,17 @@ footer{border-top:1px solid var(--edge);padding-top:22px;font-size:.84rem;color:
               <i style="height:48%"></i><i style="height:28%"></i><i style="height:12%"></i>
             </span>
           </span>
-          <span class="d">max 61°</span>
+          <span class="d">MA 120.4</span>
         </div>
       </div>
     </div>
 
-    <p class="note">Doppler shown as <b>offset from the published centre</b>, not just a
-    corrected number — you can see the bird coming toward you and going away. The rotor
-    bearing sits beside the commanded one, so a stuck rotator is visible rather than
-    inferred. <b>Nothing here is clickable</b>; the radio and rotator are already driven
-    by SatPC32.</p>
+    <p class="note">Every row is a real DDE token. Frequencies arrive as
+    <b>Doppler-corrected integer Hz</b> (<span class="mono">UP145966847</span>), so the
+    display divides rather than computes. <b><span class="mono">RR</span> is the find</b> —
+    signed range rate in km/s, giving approaching-or-receding directly instead of inferring
+    it from successive frequencies. <b>Nothing here is clickable</b>; SatPC32 already drives
+    the radio and rotator.</p>
   </section>
 
   <!-- ================= B ================= -->
@@ -340,8 +344,8 @@ footer{border-top:1px solid var(--edge);padding-top:22px;font-size:.84rem;color:
     </div>
 
     <p class="note">The strip earns its place by carrying the thing you can't see from the
-    radio: <b>keps age</b>. Seven months of silent staleness is the failure this whole
-    project started from.</p>
+    radio: <b>keps age</b>. The active file was found <b>2,248 days old</b> — six years —
+    and nothing anywhere said so.</p>
   </section>
 
   <!-- ================= health ================= -->
@@ -393,10 +397,11 @@ footer{border-top:1px solid var(--edge);padding-top:22px;font-size:.84rem;color:
     </div>
     <div class="qitem">
       <span class="qnum">02</span>
-      <p><b>The DDE string format is still unverified.</b> Fields are known from
-      <span class="mono">DivOptions.SQF</span> — az, el, both frequencies, both modes — but
-      the exact layout only shows itself with SatPC32 running against a live pass. Every
-      number above is plausible, not observed.</p>
+      <p><b>The DDE string format is now observed</b> — captured live 28 Aug 2026 and
+      parsed by <span class="mono">dde_read.py</span>. Prefix immediately precedes value
+      with no separator, so parse by prefix rather than position. It also carries
+      <span class="mono">MA</span> and <span class="mono">RR</span>, which the first draft
+      of these mockups did not know existed.</p>
     </div>
     <div class="qitem">
       <span class="qnum">03</span>
