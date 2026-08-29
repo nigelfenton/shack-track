@@ -189,3 +189,21 @@ dialog; a hand-written `Type=1` was a guess and would have been wrong.
 
 This path avoids everything that cost hours with SatPC32's CAT: no CI-V address,
 no COM port, no baud rate.
+
+## ✅ The CAT chain that works (proven 2026-08-29 01:35)
+
+    Gpredict -> AetherSDR rigctl :4532 -> IC-9700 (network, RS-BA1)
+
+Gpredict was engaged on the ISS and the radio moved from **145.210 to
+145.800000 MHz** — confirmed by asking the radio itself through rigctl, not by
+reading Gpredict's own display. That is the interaction SatPC32's CAT never
+achieved despite a working COM port, and it needed **no CI-V address, no COM
+port, no baud rate** — every obstacle from earlier in the evening bypassed.
+
+⭐ shack-hub can reach `10.0.0.104:4532` across the LAN, so a future Shack-Track
+server can live on the hub and still drive the radio on aurora13.
+
+`rigctl_log.py` records the radio side: receive-only (`f` and `m` are read
+commands that cannot change anything), one sample per second, CSV out. It is the
+counterpart to `pass_log.py` — that one records what the software COMPUTED, this
+one records what the radio DID. Neither proves the interaction alone.
