@@ -99,3 +99,21 @@ coefficients, evaluate anywhere — no propagator needed at draw time. The plot 
 `design/rs44-real-pass.txt` holds those samples, and
 `~/bin/render-fd-sats.py` on shack-hub is the reference implementation — same
 projection, `r = R*(90-el)/90`, north up.
+
+## Options dialog (Setup -> Options)
+
+Found while chasing an apparently satellite-centred map. **`Center Maps on` was
+already set to `Observer`** -- the map only *looked* satellite-centred because
+RS-44's footprint filled the frame from a sub-satellite point over central Asia,
+half a world from II22TB (hence elevation -46.5).
+
+Other settings in that dialog worth knowing:
+
+- **`Automatic TX Stop after 60 sec`** -- SatPC32 has its own transmit timeout,
+  a safety rail independent of anything AetherSDR does.
+- **Orbit model SGP4/SDP4** -- the same propagator Skyfield uses, so SatPC32 and
+  `render-fd-sats.py` agree.
+- **`Rotor control` and `CAT control`** are both ticked to activate at start, so
+  the GS-232 path is armed as soon as an interface is selected.
+
+The dialog has both **OK** and **Store**; use Store to persist a change.
