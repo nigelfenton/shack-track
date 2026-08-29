@@ -235,3 +235,56 @@ tabs with three duplicates — make sure you are reading the tab you think you a
 ⚠ My own error alongside it: I quoted a pass time from a calculation run an hour
 earlier without re-running it. Nigel caught the discrepancy from the map — "the
 ISS is over east Africa" — which was better evidence than my arithmetic.
+
+## ⚠ Checking for the wrong process name (2026-08-29)
+
+`tasklist //FI "IMAGENAME eq python3.exe"` returns **nothing** on aurora13 —
+Windows reports the interpreter as **`python3.12.exe`**. A healthy logger was
+declared dead three times on that basis, and three duplicates were started, all
+polling the same radio.
+
+Use the command line, not the image name:
+
+    Get-CimInstance Win32_Process -Filter "Name LIKE 'python3%'" |
+      Where-Object { $_.CommandLine -match 'rigctl_log' }
+
+⭐ The general fault is worth more than the specific one: a tool returned an
+empty result and it was read as a fact about the world rather than about the
+query. Same shape as trusting a polar plot verified only against its own
+arithmetic, or a pass time computed once an hour earlier. **Ask what would make
+this check wrong before believing what it says.**
+
+⚠ Also: `nohup ... &` does NOT survive this harness's shell teardown. Use the
+background-task runner instead.
+
+## ⚠ Gpredict: engaged is not the same as tracking (ISS pass, 2026-08-29 02:46)
+
+The pass was missed for three separate reasons, all worth checking BEFORE AOS:
+
+1. **Engagement does not survive a restart.** Gpredict was restarted for the QTH
+   fix and came back running but with **no connection to 4532** — the radio sat
+   on 145.800000 while the ISS was up. I verified the config and TLEs after that
+   restart but not the one thing that had been working.
+2. **Wrong transponder.** Once re-engaged it commanded **145.890** (the ISS
+   *packet* downlink), not 145.800 (the voice repeater). That alone explains "no
+   signal".
+3. **Connected but not Dopplering.** With one established connection it held
+   145.890000 across 20 s of polling, when 4.9 km/s of closing rate should step
+   it ~150 Hz every 10 s. Setting a frequency once is not tracking.
+
+⭐ **Pre-AOS checklist** (all three, not just the first):
+
+    # 1. is Gpredict actually connected?
+    Get-NetTCPConnection -RemotePort 4532 -State Established
+
+    # 2. is it on the transponder you mean?
+    echo f | (rigctl on 4532)     # ISS voice = 145.800, packet = 145.890
+
+    # 3. is the frequency MOVING?   poll twice, 10 s apart, and compare
+
+Check 3 is the only one that proves tracking. The first two can both pass while
+the radio stays fixed.
+
+⚠ "No signal" and "no Doppler" are different findings. A 15° pass with nobody on
+the repeater is simply quiet — that is not evidence of a fault. The static
+frequency was.
