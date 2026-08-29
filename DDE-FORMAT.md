@@ -146,3 +146,46 @@ ServerSDX.
 
 For LEO birds the author recommends **10 s intervals and 5°** rather than the
 15 s/5° the dialog defaults to.
+
+## Gpredict — what it actually is (checked 2026-08-29)
+
+⚠ **Licence: GPL-2.0-OR-LATER**, not GPL-3. The source headers say "either
+version 2 of the License, or (at your option) any later version". The "or later"
+matters: it means code from it could be taken into a GPL-3 project such as
+Aether-gate, which GPL-2-only would have forbidden. Talking to it over rigctl
+creates no obligation at all — that is two programs on a protocol, not linkage.
+
+⚠ **Actively maintained, but NOT for Windows.** Latest release **v2.6
+(2026-08-16)**, with 2.4 / 2.5 / 2.5.1 / 2.5.2 before it — and **none ship a
+Windows binary**. The last was `gpredict-win32-2.3.37.zip`, **January 2019**.
+winget installs that 2019 build, which is what "actively maintained" hides.
+
+Consequences of the 2019 build, both hit here:
+- Its TLE update is **dead**: the bundled URLs are `celestrak.com/NORAD/elements/*.txt`,
+  which 404 — the same rot that broke SatPC32. Verified all variants.
+- Its bundled catalogue is from 2018 (ISS elements epoch `18020`) and **has no
+  RS-44**, which launched Dec 2019. 78 amateur satellites were missing.
+
+Both fixed by writing current elements straight into `~/Gpredict/satdata/*.sat`
+(`TLE1=`/`TLE2=` lines) and creating `.sat` files for the missing ones. All six
+tracked birds now read 0 days old. **This will need redoing** — Gpredict cannot
+refresh itself.
+
+Building 2.6 for Windows is possible (GTK-3 + autotools via MSYS2) but means
+owning a build upstream abandoned five releases ago. Running **v2.6 on the Pi5**
+is the better route to a current version: Linux is where it is maintained, and
+it speaks rigctl over the network to AetherSDR on aurora13.
+
+### The working CAT path (proven 2026-08-29)
+
+⭐ **AetherSDR IS the rigctl server** — no Hamlib needed. Its CAT Control applet
+has several ports; the enabled one is **4532** (Hamlib's default), dialect
+`Rigctld`, VFO A. Verified live: `f` returned `145210000`, `m` returned
+`FM / 15000`, and `dump_state` a full capability report.
+
+Gpredict config is `~/Gpredict/hwconf/IC-9700.rig`: `Host=localhost Port=4532
+Type=0 PTT=0` — Type=0 is RX-only. ⭐ Let Gpredict WRITE that file from its own
+dialog; a hand-written `Type=1` was a guess and would have been wrong.
+
+This path avoids everything that cost hours with SatPC32's CAT: no CI-V address,
+no COM port, no baud rate.
