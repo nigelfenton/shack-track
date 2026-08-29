@@ -288,3 +288,26 @@ the radio stays fixed.
 ⚠ "No signal" and "no Doppler" are different findings. A 15° pass with nobody on
 the repeater is simply quiet — that is not evidence of a fault. The static
 frequency was.
+
+## ✅ PROVEN: live Doppler tracking on a real pass (ISS, 2026-08-29 02:52–02:54)
+
+After re-engaging, the chain worked end to end and was measured, not assumed:
+
+    02:52:31  145888247 Hz   -1753 Hz from 145.890
+    02:53:23  145887740 Hz   -2260
+    02:54:05  145887462 Hz   -2538
+
+11 samples, **monotonic descent**, deepening 785 Hz over 94 seconds.
+
+⭐ **It agrees with the physics.** Skyfield gave range rate **+4.454 km/s**
+(receding) at that moment, predicting **−2166 Hz** on 145.800; the radio sat
+about **−1990 Hz** from 145.890 in the same window. Within ~180 Hz, and the gap
+is explained by the two carriers differing and a few seconds between samples.
+
+The SIGN is the part worth noting: positive range rate means receding, so the
+signal arrives LOW and the radio must tune DOWN. It did. Not merely moving —
+moving the correct way.
+
+`Gpredict → AetherSDR rigctl :4532 → IC-9700` is therefore proven for sustained
+Doppler tracking, not just a one-off frequency set. Captured in
+`iss-doppler-2026-08-29.csv`.
