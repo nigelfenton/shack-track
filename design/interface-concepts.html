@@ -1,0 +1,415 @@
+<title>Shack-Track Interface Concepts</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chivo:wght@400;700;900&family=Source+Sans+3:wght@400;600&family=JetBrains+Mono:wght@400;700&display=swap">
+
+<style>
+:root{
+  /* Light theme: AE has no light seed, so this is a faithful lift of the dark
+     palette's ROLES onto a light ground -- same accent, same semantics. */
+  --ground:#EEF2F7; --panel:#FFFFFF; --panel-2:#E4EAF2; --edge:#C9D4E2;
+  --ink:#0F1520; --ink-2:#33404F; --label:#5C6B80;
+  --accent:#0089a8;                      /* AE cyan, darkened for light ground */
+  --live:#1E9E56; --soon:#A96C00; --los:#C43333; --track:#0089a8;
+  --grid:#D6DEE9; --sky:#E4EAF2;
+  --shadow:0 1px 2px rgba(15,21,32,.06),0 8px 24px rgba(15,21,32,.05);
+}
+/* ---- AetherSDR dark seed (src/core/ThemeSeedGenerated.cpp) ----
+   #0f0f1a ground · #1a2330 spectrum grid · #00b4d8 accent
+   #8ea8c0 text.secondary · #c8d8e8 text · #4dd87a / #ffb84d / #ff4d4d semantics */
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --ground:#0f0f1a; --panel:#151b28; --panel-2:#1a2330; --edge:#304050;
+    --ink:#c8d8e8; --ink-2:#a8bcd0; --label:#8ea8c0;
+    --accent:#00b4d8;
+    --live:#4dd87a; --soon:#ffb84d; --los:#ff4d4d; --track:#00b4d8;
+    --grid:#1a2330; --sky:#121823;
+    --shadow:0 1px 2px rgba(0,0,0,.5),0 10px 30px rgba(0,0,0,.4);
+  }
+}
+:root[data-theme="dark"]{
+  --ground:#0f0f1a; --panel:#151b28; --panel-2:#1a2330; --edge:#304050;
+  --ink:#c8d8e8; --ink-2:#a8bcd0; --label:#8ea8c0;
+  --accent:#00b4d8;
+  --live:#4dd87a; --soon:#ffb84d; --los:#ff4d4d; --track:#00b4d8;
+  --grid:#1a2330; --sky:#121823;
+  --shadow:0 1px 2px rgba(0,0,0,.5),0 10px 30px rgba(0,0,0,.4);
+}
+
+*{box-sizing:border-box}
+body{
+  margin:0; background:var(--ground); color:var(--ink);
+  font-family:"Source Sans 3",ui-sans-serif,system-ui,sans-serif;
+  font-size:16px; line-height:1.6; -webkit-font-smoothing:antialiased;
+}
+.wrap{max-width:1080px;margin:0 auto;padding:56px 24px 96px;display:flex;flex-direction:column;gap:64px}
+h1,h2,h3{font-family:Chivo,ui-sans-serif,system-ui,sans-serif;text-wrap:balance;margin:0}
+h1{font-weight:900;font-size:clamp(2rem,5vw,3rem);letter-spacing:-.02em;line-height:1.05}
+h2{font-weight:700;font-size:1.5rem;letter-spacing:-.01em}
+h3{font-weight:700;font-size:1rem}
+p{margin:0;max-width:66ch;color:var(--ink-2)}
+.mono{font-family:"JetBrains Mono",ui-monospace,monospace;font-variant-numeric:tabular-nums}
+.eyebrow{
+  font-family:"JetBrains Mono",ui-monospace,monospace;font-size:.7rem;
+  letter-spacing:.16em;text-transform:uppercase;color:var(--label);
+}
+
+/* ---------- header ---------- */
+header{display:flex;flex-direction:column;gap:14px;border-bottom:1px solid var(--edge);padding-bottom:32px}
+.sub{font-size:1.05rem;max-width:60ch}
+.meta{display:flex;flex-wrap:wrap;gap:8px;margin-top:4px}
+.tag{
+  font-family:"JetBrains Mono",ui-monospace,monospace;font-size:.7rem;
+  border:1px solid var(--edge);border-radius:999px;padding:4px 10px;color:var(--label);
+}
+
+/* ---------- concept scaffold ---------- */
+.concept{display:flex;flex-direction:column;gap:18px}
+.chead{display:flex;flex-direction:column;gap:6px}
+.mock{
+  background:var(--panel);border:1px solid var(--edge);border-radius:10px;
+  box-shadow:var(--shadow);overflow:hidden;
+}
+.note{font-size:.9rem;color:var(--label);max-width:70ch}
+.note b{color:var(--ink-2);font-weight:600}
+
+/* ---------- A: operating view ---------- */
+.opview{display:grid;grid-template-columns:minmax(0,300px) minmax(0,1fr)}
+@media(max-width:760px){.opview{grid-template-columns:1fr}}
+.compass{
+  background:var(--sky);border-right:1px solid var(--edge);
+  padding:22px;display:flex;flex-direction:column;gap:14px;align-items:center;
+}
+@media(max-width:760px){.compass{border-right:none;border-bottom:1px solid var(--edge)}}
+.dial{width:100%;max-width:236px;aspect-ratio:1;display:block}
+.stack{padding:22px;display:flex;flex-direction:column;gap:0}
+.row{
+  display:grid;grid-template-columns:76px minmax(0,1fr) auto;gap:14px;
+  align-items:baseline;padding:11px 0;border-bottom:1px solid var(--edge);
+}
+.row:last-child{border-bottom:none}
+.row .k{font-family:"JetBrains Mono",ui-monospace,monospace;font-size:.68rem;letter-spacing:.12em;text-transform:uppercase;color:var(--label)}
+.row .v{font-family:"JetBrains Mono",ui-monospace,monospace;font-variant-numeric:tabular-nums;font-size:1.18rem;color:var(--ink)}
+.row .v small{font-size:.72rem;color:var(--label);margin-left:6px;letter-spacing:.04em}
+.row .d{font-family:"JetBrains Mono",ui-monospace,monospace;font-size:.78rem;color:var(--live)}
+.row .d.neg{color:var(--track)}
+
+.satline{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:6px}
+.satname{font-family:Chivo,sans-serif;font-weight:900;font-size:1.6rem;letter-spacing:-.02em}
+.pill{
+  font-family:"JetBrains Mono",ui-monospace,monospace;font-size:.66rem;letter-spacing:.12em;
+  text-transform:uppercase;padding:3px 9px;border-radius:999px;border:1px solid;
+}
+.pill.live{color:var(--live);border-color:var(--live)}
+.pill.mode{color:var(--label);border-color:var(--edge)}
+.tos{font-family:"JetBrains Mono",ui-monospace,monospace;font-size:.78rem;color:var(--label);margin-left:auto}
+
+/* elevation ladder */
+.ladder{display:flex;align-items:flex-end;gap:3px;height:38px;margin-top:2px}
+.ladder i{flex:1;background:var(--grid);border-radius:1px}
+.ladder i.on{background:var(--live)}
+.ladder i.now{background:var(--ink)}
+
+/* ---------- B: timeline ---------- */
+.tl{padding:22px;display:flex;flex-direction:column;gap:0}
+.tlrow{
+  display:grid;grid-template-columns:104px minmax(0,1fr) 92px;gap:16px;align-items:center;
+  padding:13px 0;border-bottom:1px solid var(--edge);
+}
+.tlrow:last-child{border-bottom:none}
+.tlname{display:flex;flex-direction:column;gap:1px}
+.tlname b{font-family:Chivo,sans-serif;font-weight:700;font-size:.98rem}
+.tlname span{font-family:"JetBrains Mono",ui-monospace,monospace;font-size:.66rem;color:var(--label);letter-spacing:.06em}
+.bar{position:relative;height:26px;background:var(--panel-2);border-radius:4px;overflow:hidden}
+.bar em{
+  position:absolute;top:0;bottom:0;border-radius:4px;font-style:normal;
+  display:flex;align-items:center;justify-content:center;
+  font-family:"JetBrains Mono",ui-monospace,monospace;font-size:.66rem;color:var(--ground);font-weight:700;
+}
+.bar em.hi{background:var(--live)}
+.bar em.mid{background:var(--track)}
+.bar em.lo{background:var(--label)}
+.tlwhen{font-family:"JetBrains Mono",ui-monospace,monospace;font-variant-numeric:tabular-nums;font-size:.86rem;text-align:right}
+.tlwhen b{display:block;font-weight:700;font-size:.95rem}
+.tlwhen span{color:var(--label);font-size:.7rem}
+.tlaxis{display:grid;grid-template-columns:104px minmax(0,1fr) 92px;gap:16px;padding-top:8px}
+.axmarks{display:flex;justify-content:space-between;font-family:"JetBrains Mono",ui-monospace,monospace;font-size:.64rem;color:var(--label)}
+
+/* ---------- C: strip ---------- */
+.strip{
+  display:flex;align-items:stretch;gap:0;background:var(--panel);
+  border:1px solid var(--edge);border-radius:10px;overflow:hidden;box-shadow:var(--shadow);
+  flex-wrap:wrap;
+}
+.cell{padding:13px 18px;border-right:1px solid var(--edge);display:flex;flex-direction:column;gap:2px;min-width:0}
+.cell:last-child{border-right:none}
+.cell .k{font-family:"JetBrains Mono",ui-monospace,monospace;font-size:.6rem;letter-spacing:.14em;text-transform:uppercase;color:var(--label)}
+.cell .v{font-family:"JetBrains Mono",ui-monospace,monospace;font-variant-numeric:tabular-nums;font-size:1.06rem}
+.cell.accent{background:var(--panel-2)}
+.cell.accent .v{color:var(--live)}
+.stripe{width:4px;background:var(--live);flex:0 0 4px}
+
+/* ---------- health ---------- */
+.health{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:14px}
+.hcard{background:var(--panel);border:1px solid var(--edge);border-left-width:3px;border-radius:8px;padding:15px 17px;display:flex;flex-direction:column;gap:5px}
+.hcard.ok{border-left-color:var(--live)}
+.hcard.warn{border-left-color:var(--soon)}
+.hcard.bad{border-left-color:var(--los)}
+.hcard .k{font-family:"JetBrains Mono",ui-monospace,monospace;font-size:.64rem;letter-spacing:.13em;text-transform:uppercase;color:var(--label)}
+.hcard .v{font-family:Chivo,sans-serif;font-weight:700;font-size:1.12rem}
+.hcard .m{font-size:.82rem;color:var(--label)}
+
+/* ---------- open questions ---------- */
+.q{display:flex;flex-direction:column;gap:12px;border-top:1px solid var(--edge);padding-top:28px}
+.qitem{display:grid;grid-template-columns:26px minmax(0,1fr);gap:12px;align-items:start}
+.qnum{font-family:"JetBrains Mono",ui-monospace,monospace;font-size:.74rem;color:var(--label);padding-top:3px}
+.qitem p{font-size:.94rem}
+.qitem b{color:var(--ink)}
+footer{border-top:1px solid var(--edge);padding-top:22px;font-size:.84rem;color:var(--label)}
+</style>
+
+<div class="wrap">
+
+  <header>
+    <div class="eyebrow">Interface concepts · 28 Aug 2026</div>
+    <h1>Shack-Track</h1>
+    <p class="sub">Three ways to draw a satellite pass from the data SatPC32 already
+    publishes. Not a tracker — the orbital maths is solved. This is the operating
+    surface that isn't there yet.</p>
+    <div class="meta">
+      <span class="tag">DDE @ 1 Hz</span>
+      <span class="tag">az / el</span>
+      <span class="tag">up + down freq</span>
+      <span class="tag">modes</span>
+      <span class="tag">G0JKN</span>
+    </div>
+  </header>
+
+  <!-- ================= A ================= -->
+  <section class="concept">
+    <div class="chead">
+      <div class="eyebrow">Concept A — during the pass</div>
+      <h2>Operating view</h2>
+      <p>For the ninety seconds you're actually working the bird. One glance answers
+      where to point, where the signal is now, and how long is left.</p>
+    </div>
+
+    <div class="mock opview">
+      <div class="compass">
+        <svg class="dial" viewBox="0 0 200 200" role="img" aria-label="Polar sky plot. Centre is overhead, the outer circle is the horizon. RS-44 is currently at 132 degrees azimuth and 44 degrees elevation, rising. Its pass arc runs from acquisition in the east through a 61 degree maximum to loss in the west.">
+          <circle cx="100" cy="100" r="92" fill="none" stroke="var(--grid)"/>
+          <circle cx="100" cy="100" r="61.3" fill="none" stroke="var(--grid)" stroke-dasharray="2 4"/>
+          <circle cx="100" cy="100" r="30.7" fill="none" stroke="var(--grid)" stroke-dasharray="2 4"/>
+          <!-- Pass arc in TRUE polar sky coordinates: centre = zenith (90 deg),
+               rim = horizon (0 deg). The arc bows INWARD; how close it gets to the
+               centre IS the maximum elevation. AOS az 61, peak 61 deg at az 165,
+               LOS az 267. -->
+          <path d="M 180.5 55.4 L 180.0 83.0 L 168.5 112.1 L 152.4 125.5 L 134.9 131.5 L 117.9 131.0 L 107.7 128.6 L 98.8 135.8 L 84.6 142.3 L 65.4 144.3 L 44.7 138.7 L 24.2 124.6 L 8.1 104.8" fill="none"
+                stroke="var(--track)" stroke-width="2" opacity=".5"
+                stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M 180.5 55.4 L 180.0 83.0 L 168.5 112.1 L 152.4 125.5 L 134.9 131.5" fill="none"
+                stroke="var(--live)" stroke-width="2.5"
+                stroke-linecap="round" stroke-linejoin="round"/>
+          <!-- current position: az 132, el 44 -- ON the travelled path, still rising -->
+          <circle cx="134.9" cy="131.5" r="5" fill="var(--live)"
+                  stroke="var(--panel)" stroke-width="2"/>
+          <!-- elevation ring labels -->
+          <text x="104" y="42" font-family="JetBrains Mono, monospace" font-size="7" fill="var(--label)">60</text>
+          <text x="104" y="72" font-family="JetBrains Mono, monospace" font-size="7" fill="var(--label)">30</text>
+          <text x="100" y="16" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="10" fill="var(--label)">N</text>
+          <text x="188" y="104" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="10" fill="var(--label)">E</text>
+          <text x="100" y="194" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="10" fill="var(--label)">S</text>
+          <text x="12" y="104" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="10" fill="var(--label)">W</text>
+        </svg>
+        <div class="eyebrow" style="text-align:center">centre = overhead · rings 30° 60° · dot = now</div>
+      </div>
+
+      <div class="stack">
+        <div class="satline">
+          <span class="satname">RS-44</span>
+          <span class="pill live">Live</span>
+          <span class="pill mode">USB / LSB · REV</span>
+          <span class="tos mono">LOS in 4:12</span>
+        </div>
+
+        <div class="row">
+          <span class="k">Down</span>
+          <span class="v">435.638<small>MHz</small></span>
+          <span class="d">−2.1 kHz</span>
+        </div>
+        <div class="row">
+          <span class="k">Up</span>
+          <span class="v">145.966<small>MHz</small></span>
+          <span class="d neg">+0.7 kHz</span>
+        </div>
+        <div class="row">
+          <span class="k">Bearing</span>
+          <span class="v">132°<small>az</small> &nbsp; 44°<small>el</small></span>
+          <span class="d">rotor 131°</span>
+        </div>
+        <div class="row">
+          <span class="k">Elevation</span>
+          <span class="v" style="width:100%">
+            <span class="ladder" aria-label="Elevation profile across the pass, currently climbing before the peak">
+              <i style="height:12%"></i><i style="height:24%"></i><i class="on" style="height:38%"></i>
+              <i class="on" style="height:54%"></i><i class="now" style="height:72%"></i><i style="height:88%"></i>
+              <i style="height:100%"></i><i style="height:86%"></i><i style="height:68%"></i>
+              <i style="height:48%"></i><i style="height:28%"></i><i style="height:12%"></i>
+            </span>
+          </span>
+          <span class="d">max 61°</span>
+        </div>
+      </div>
+    </div>
+
+    <p class="note">Doppler shown as <b>offset from the published centre</b>, not just a
+    corrected number — you can see the bird coming toward you and going away. The rotor
+    bearing sits beside the commanded one, so a stuck rotator is visible rather than
+    inferred. <b>Nothing here is clickable</b>; the radio and rotator are already driven
+    by SatPC32.</p>
+  </section>
+
+  <!-- ================= B ================= -->
+  <section class="concept">
+    <div class="chead">
+      <div class="eyebrow">Concept B — before the pass</div>
+      <h2>Tonight's passes</h2>
+      <p>The planning question is different from the operating one: which of these is
+      worth staying up for? Bar length is time above the horizon, height of the fill is
+      maximum elevation.</p>
+    </div>
+
+    <div class="mock">
+      <div class="tl">
+        <div class="tlrow">
+          <span class="tlname"><b>SO-50</b><span>FM · NOR</span></span>
+          <span class="bar"><em class="mid" style="left:4%;width:19%">11 min · 38°</em></span>
+          <span class="tlwhen"><b>21:44</b><span>in 22 min</span></span>
+        </div>
+        <div class="tlrow">
+          <span class="tlname"><b>RS-44</b><span>USB/LSB · REV</span></span>
+          <span class="bar"><em class="hi" style="left:26%;width:33%">19 min · 61°</em></span>
+          <span class="tlwhen"><b>22:31</b><span>in 1 h 09</span></span>
+        </div>
+        <div class="tlrow">
+          <span class="tlname"><b>AO-91</b><span>FM · NOR</span></span>
+          <span class="bar"><em class="lo" style="left:48%;width:12%">7 min · 14°</em></span>
+          <span class="tlwhen"><b>23:02</b><span>in 1 h 40</span></span>
+        </div>
+        <div class="tlrow">
+          <span class="tlname"><b>ISS</b><span>FM · packet</span></span>
+          <span class="bar"><em class="mid" style="left:63%;width:16%">9 min · 44°</em></span>
+          <span class="tlwhen"><b>23:38</b><span>in 2 h 16</span></span>
+        </div>
+        <div class="tlrow">
+          <span class="tlname"><b>AO-73</b><span>USB/LSB · REV</span></span>
+          <span class="bar"><em class="lo" style="left:81%;width:10%">6 min · 11°</em></span>
+          <span class="tlwhen"><b>00:14</b><span>in 2 h 52</span></span>
+        </div>
+        <div class="tlaxis">
+          <span></span>
+          <span class="axmarks"><span>21:30</span><span>22:30</span><span>23:30</span><span>00:30</span></span>
+          <span></span>
+        </div>
+      </div>
+    </div>
+
+    <p class="note">Colour is <b>elevation class, not decoration</b> — a 61° overhead pass
+    and an 11° scrape look different at a glance, which is the one judgement this screen
+    exists to support. Modes come straight from your <span class="mono">DOPPLER.SQF</span>,
+    so what you see is what the radio will be set to.</p>
+  </section>
+
+  <!-- ================= C ================= -->
+  <section class="concept">
+    <div class="chead">
+      <div class="eyebrow">Concept C — always on</div>
+      <h2>Status strip</h2>
+      <p>One line for a second monitor or the shack display. No pass in progress, still
+      worth a glance.</p>
+    </div>
+
+    <div class="strip">
+      <div class="stripe"></div>
+      <div class="cell accent"><span class="k">Next</span><span class="v">SO-50</span></div>
+      <div class="cell"><span class="k">AOS</span><span class="v">21:44</span></div>
+      <div class="cell"><span class="k">Countdown</span><span class="v">00:22:09</span></div>
+      <div class="cell"><span class="k">Max el</span><span class="v">38°</span></div>
+      <div class="cell"><span class="k">Rotor</span><span class="v">parked</span></div>
+      <div class="cell"><span class="k">Keps</span><span class="v">2 h old</span></div>
+    </div>
+
+    <p class="note">The strip earns its place by carrying the thing you can't see from the
+    radio: <b>keps age</b>. Seven months of silent staleness is the failure this whole
+    project started from.</p>
+  </section>
+
+  <!-- ================= health ================= -->
+  <section class="concept">
+    <div class="chead">
+      <div class="eyebrow">The piece that pays for itself</div>
+      <h2>Keps health</h2>
+      <p>Build this first. It needs no hardware, no pass, and no interface decisions —
+      and it's the gap that actually bit.</p>
+    </div>
+
+    <div class="health">
+      <div class="hcard ok">
+        <span class="k">nasabare.txt</span>
+        <span class="v">99 TLEs</span>
+        <span class="m">Newest epoch 2 h ago · AMSAT</span>
+      </div>
+      <div class="hcard ok">
+        <span class="k">GROUP=amateur</span>
+        <span class="v">96 TLEs</span>
+        <span class="m">Newest epoch 6 h ago · Celestrak</span>
+      </div>
+      <div class="hcard warn">
+        <span class="k">GROUP=last-30-days</span>
+        <span class="v">0 TLEs</span>
+        <span class="m">Valid group, empty today — not a fault</span>
+      </div>
+      <div class="hcard bad">
+        <span class="k">celestrak.com (old)</span>
+        <span class="v">404</span>
+        <span class="m">Dead since the .org move — this is what rotted</span>
+      </div>
+    </div>
+
+    <p class="note">Each card counts <b>TLE lines, never HTTP status</b>. Celestrak answers
+    a bad group with <span class="mono">200 OK</span> and an <span class="mono">Invalid
+    query</span> body — a status check calls that success, which is precisely how the
+    problem hid for seven months.</p>
+  </section>
+
+  <!-- ================= questions ================= -->
+  <section class="q">
+    <div class="eyebrow">Decisions before code</div>
+    <div class="qitem">
+      <span class="qnum">01</span>
+      <p><b>Which concept is the product?</b> A and C could ship together — the same reader
+      feeding two views. B needs pass prediction, which means either scraping SatPC32's own
+      list or adding SGP4, and that is the one place this could quietly become a tracker.</p>
+    </div>
+    <div class="qitem">
+      <span class="qnum">02</span>
+      <p><b>The DDE string format is still unverified.</b> Fields are known from
+      <span class="mono">DivOptions.SQF</span> — az, el, both frequencies, both modes — but
+      the exact layout only shows itself with SatPC32 running against a live pass. Every
+      number above is plausible, not observed.</p>
+    </div>
+    <div class="qitem">
+      <span class="qnum">03</span>
+      <p><b>Full duplex is unresolved.</b> AetherSDR deliberately reports satellite mode off
+      to Hamlib. If a V/U bird can't run both directions at once, the uplink row in Concept A
+      is showing something the radio isn't doing.</p>
+    </div>
+  </section>
+
+  <footer>
+    Drawn against real values from <span class="mono">DOPPLER.SQF</span> — RS-44, SO-50,
+    AO-91, AO-73 and ISS with their actual frequencies and modes. Rotator control stays with
+    SatPC32's bundled <span class="mono">ServerSDX</span>; nothing here moves an antenna.
+  </footer>
+
+</div>
