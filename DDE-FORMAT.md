@@ -207,3 +207,31 @@ server can live on the hub and still drive the radio on aurora13.
 commands that cannot change anything), one sample per second, CSV out. It is the
 counterpart to `pass_log.py` — that one records what the software COMPUTED, this
 one records what the radio DID. Neither proves the interaction alone.
+
+## ⭐⭐ Gpredict ships a Copenhagen QTH — check it FIRST
+
+Gpredict's numbers looked plausible but wrong: ISS at el −23.96, az 134.81,
+range 6081 km, AOS 07:03:46Z — against Skyfield's −55.69 / 60.39 / 11045 km /
+06:45:58Z for the same instant and the same elements.
+
+**Cause: `sample.qth`, "Copenhagen, Denmark" (55.6167N, 12.65E)** — the shipped
+default, 6500 km from II22TB. Every figure was correct *for Denmark*. An 18-minute
+AOS difference is the symptom you notice; **74° of azimuth and 5000 km of range
+are the ones that identify it**.
+
+Fixed by writing `~/Gpredict/II22TB.qth` (lat -7.9375, lon −14.375, alt 19 —
+taken from SatPC32's `SATINI.SQF`) and selecting it. `gpredict.cfg` then reads
+`DEFAULT_QTH=II22TB.qth`. Needs a restart. Verified: the numbers match Skyfield.
+
+Two false leads discarded on the way, both worth not repeating:
+- **Not the two ISS entries.** `ISS.mod` tracks 25544 (ZARYA) and 49044 (NAUKA),
+  both nicknamed "ISS" — but computing both gives *identical* results, so the
+  ambiguity is cosmetic.
+- **Not stale keps.** Both were 0 days old.
+
+⚠ Each module can carry its own ground station, and `OPEN_MODULES` showed four
+tabs with three duplicates — make sure you are reading the tab you think you are.
+
+⚠ My own error alongside it: I quoted a pass time from a calculation run an hour
+earlier without re-running it. Nigel caught the discrepancy from the map — "the
+ISS is over east Africa" — which was better evidence than my arithmetic.
