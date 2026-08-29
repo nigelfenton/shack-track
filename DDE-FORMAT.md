@@ -117,3 +117,32 @@ Other settings in that dialog worth knowing:
   the GS-232 path is armed as soon as an interface is selected.
 
 The dialog has both **OK** and **Store**; use Store to persist a change.
+
+## Rotor setup — where it got to (2026-08-28)
+
+⏳ **Not finished. The rotator was not connected**, so this was left partway.
+
+`Setup -> Rotor setup` -> combo box -> **`Yaesu_GS-232`** is the right choice for a
+K3NG (it speaks GS-232). Two things confuse this dialog:
+
+- ⚠ The settings list shows **`LPT (1 - 4, only IF-100, FODTrack, RifPC)`**. That row
+  applies ONLY to those three parallel-port interfaces and is **inert for GS-232**,
+  as are the `Port address: $0278` and the LPT number. aurora13 has no LPT hardware
+  at all. Only **Minimum elevation** and the H/V antenna corrections apply here.
+- ⚠ The dialog has **two Store buttons**. The UPPER one saves the interface choice;
+  the lower one saves the optional settings. `RotorInterface.SQF` still reads `0`,
+  so the selection had NOT persisted -- check that file to confirm, do not trust the
+  dialog's appearance.
+
+⭐ **The COM port is NOT in this dialog.** It lives in `ServerSDX`, which SatPC32
+launches automatically on restart and parks in the system tray: click it ->
+**Setup** -> choose port and baud. The readme warns the port must not be the one
+SatPC32 is using for CAT, or ServerSDX errors.
+
+Blocker at the time: only COM19/COM21 existed and both are the IC-9700, so there was
+no port for the rotator. Plug the K3NG in first, confirm a third COM appears, then
+work through: select GS-232 -> upper Store -> restart SatPC32 -> set the port in
+ServerSDX.
+
+For LEO birds the author recommends **10 s intervals and 5°** rather than the
+15 s/5° the dialog defaults to.
