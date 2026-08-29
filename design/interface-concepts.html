@@ -199,7 +199,7 @@ footer{border-top:1px solid var(--edge);padding-top:22px;font-size:.84rem;color:
 
     <div class="mock opview">
       <div class="compass">
-        <svg class="dial" viewBox="0 0 200 200" role="img" aria-label="Polar sky plot. Centre is overhead, the outer circle is the horizon. RS-44 is currently at 132 degrees azimuth and 44 degrees elevation, rising. Its pass arc runs from acquisition in the east through a 61 degree maximum to loss in the west.">
+        <svg class="dial" viewBox="0 0 200 200" role="img" aria-label="Polar sky plot. Centre is overhead, the outer circle is the horizon. RS-44 is currently at 32 degrees azimuth and 31 degrees elevation, rising. Its pass arc runs from acquisition in the east through a 61 degree maximum to loss in the west.">
           <circle cx="100" cy="100" r="92" fill="none" stroke="var(--grid)"/>
           <circle cx="100" cy="100" r="61.3" fill="none" stroke="var(--grid)" stroke-dasharray="2 4"/>
           <circle cx="100" cy="100" r="30.7" fill="none" stroke="var(--grid)" stroke-dasharray="2 4"/>
@@ -207,14 +207,14 @@ footer{border-top:1px solid var(--edge);padding-top:22px;font-size:.84rem;color:
                rim = horizon (0 deg). The arc bows INWARD; how close it gets to the
                centre IS the maximum elevation. AOS az 61, peak 61 deg at az 165,
                LOS az 267. -->
-          <path d="M 180.5 55.4 L 180.0 83.0 L 168.5 112.1 L 152.4 125.5 L 134.9 131.5 L 117.9 131.0 L 107.7 128.6 L 98.8 135.8 L 84.6 142.3 L 65.4 144.3 L 44.7 138.7 L 24.2 124.6 L 8.1 104.8" fill="none"
+          <path d="M 97.6 8.0 L 99.5 9.7 L 101.5 11.5 L 103.5 13.4 L 105.7 15.4 L 107.9 17.6 L 110.2 20.0 L 112.5 22.5 L 115.0 25.3 L 117.6 28.3 L 120.4 31.7 L 123.2 35.3 L 126.1 39.3 L 129.1 43.8 L 132.1 48.7 L 135.2 54.0 L 138.2 59.8 L 141.2 66.1 L 143.9 72.9 L 146.4 79.9 L 148.6 87.2 L 150.4 94.5 L 151.8 101.8 L 152.8 108.9 L 153.5 115.7 L 153.8 122.2 L 154.0 128.2 L 153.8 133.9 L 153.6 139.1 L 153.2 143.9 L 152.7 148.4 L 152.1 152.5 L 151.5 156.3 L 150.9 159.9 L 150.3 163.2 L 149.6 166.3 L 149.0 169.2 L 148.3 172.0 L 147.7 174.6 L 147.1 177.0 L 146.5 179.4" fill="none"
                 stroke="var(--track)" stroke-width="2" opacity=".5"
                 stroke-linecap="round" stroke-linejoin="round"/>
-          <path d="M 180.5 55.4 L 180.0 83.0 L 168.5 112.1 L 152.4 125.5 L 134.9 131.5" fill="none"
+          <path d="M 97.6 8.0 L 99.5 9.7 L 101.5 11.5 L 103.5 13.4 L 105.7 15.4 L 107.9 17.6 L 110.2 20.0 L 112.5 22.5 L 115.0 25.3 L 117.6 28.3 L 120.4 31.7 L 123.2 35.3 L 126.1 39.3 L 129.1 43.8 L 132.1 48.7" fill="none"
                 stroke="var(--live)" stroke-width="2.5"
                 stroke-linecap="round" stroke-linejoin="round"/>
-          <!-- current position: az 132, el 44 -- ON the travelled path, still rising -->
-          <circle cx="134.9" cy="131.5" r="5" fill="var(--live)"
+          <!-- current position: az 114, el 44 -- ON the sweep, still rising -->
+          <circle cx="132.1" cy="48.7" r="5" fill="var(--live)"
                   stroke="var(--panel)" stroke-width="2"/>
           <!-- elevation ring labels -->
           <text x="104" y="42" font-family="JetBrains Mono, monospace" font-size="7" fill="var(--label)">60</text>
@@ -224,14 +224,14 @@ footer{border-top:1px solid var(--edge);padding-top:22px;font-size:.84rem;color:
           <text x="100" y="194" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="10" fill="var(--label)">S</text>
           <text x="12" y="104" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="10" fill="var(--label)">W</text>
         </svg>
-        <div class="eyebrow" style="text-align:center">centre = overhead · rings 30° 60° · dot = now</div>
+        <div class="eyebrow" style="text-align:center">real RS-44 pass · Skyfield · peak 41°</div>
       </div>
 
       <div class="stack">
         <div class="satline">
           <span class="satname">RS-44</span>
           <span class="pill live">Live</span>
-          <span class="pill mode">USB / LSB · REV</span>
+          <span class="pill mode">USB / LSB · REV</span><span class="pill mode">real pass</span>
           <span class="tos mono">LOS in 4:12</span>
         </div>
 
@@ -247,8 +247,8 @@ footer{border-top:1px solid var(--edge);padding-top:22px;font-size:.84rem;color:
         </div>
         <div class="row">
           <span class="k">AZ·EL</span>
-          <span class="v">132°<small>az</small> &nbsp; 44°<small>el</small></span>
-          <span class="d">rotor 131°</span>
+          <span class="v">32°<small>az</small> &nbsp; 31°<small>el</small></span>
+          <span class="d">rotor 31°</span>
         </div>
         <div class="row">
           <span class="k">EL trace</span>
@@ -260,7 +260,7 @@ footer{border-top:1px solid var(--edge);padding-top:22px;font-size:.84rem;color:
               <i style="height:48%"></i><i style="height:28%"></i><i style="height:12%"></i>
             </span>
           </span>
-          <span class="d">MA 120.4</span>
+          <span class="d">peak 41°</span>
         </div>
       </div>
     </div>

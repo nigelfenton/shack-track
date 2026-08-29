@@ -67,3 +67,35 @@ There is no COM 38 on aurora13 — the IC-9700 presents **COM19 and COM21**
 (Silicon Labs CP210x), and the index drifts between sessions. Fixed by setting
 line 1 of `Scope\ScopePar.SQF` to `21` (CI-V, 19200 baud, matching line 2).
 Backup kept as `ScopePar.SQF.bak-20260828`.
+
+---
+
+## Drawing a pass arc — do not model it, fit it
+
+Building the sky-plot arc from a hand-derived spherical model was a mistake worth
+recording. A pass looks like it should fall out of a great-circle construction,
+but it is not symmetric about its peak — the observer is on a rotating Earth —
+and the model was **18.5° out in azimuth** at worst even after fixing an `asin`
+quadrant bug with `atan2`.
+
+Measured against a real RS-44 pass over II22TB (Skyfield, 41 samples, peak 41°):
+
+| approach | max az error | max el error |
+|---|---|---|
+| hand-derived spherical model | **18.5°** | 4.3° |
+| cubic polynomial in t | 5.81° | 6.24° |
+| degree-5 polynomial | 2.24° | 2.29° |
+| **degree-7 polynomial** | **0.95°** | **0.89°** |
+
+So **16 coefficients** (8 az, 8 el, parameterised on t = 0..1 through the pass)
+reproduce a pass to under a degree. Azimuth must be **unwrapped** past 360 first
+or the fit tears at the wraparound.
+
+That is the cheap way to carry a pass: compute once with Skyfield, store the
+coefficients, evaluate anywhere — no propagator needed at draw time. The plot in
+`design/interface-concepts.html` currently uses the 41 raw points directly
+(exact, and simpler still when the data is already to hand).
+
+`design/rs44-real-pass.txt` holds those samples, and
+`~/bin/render-fd-sats.py` on shack-hub is the reference implementation — same
+projection, `r = R*(90-el)/90`, north up.
