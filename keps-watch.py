@@ -55,7 +55,16 @@ SOURCES = {
 # Local keps files to age-check. Paths that do not exist are skipped quietly --
 # this is meant to run on either the shack-hub or the Windows box.
 LOCAL_FILES = [
-    Path.home() / "AppData/Roaming/SatPC32/InterKeps2.txt",
+    # THE ONE THAT MATTERS: SatSources.SQF points SatPC32 at Keplermateur.txt,
+    # so this is the file it actually predicts from. It was found 2248 days old
+    # (July 2020) -- far worse than the InterKeps2.txt staleness that started
+    # this. Age the file SatPC32 READS, not the ones merely sitting beside it.
+    Path.home() / "AppData/Roaming/SatPC32/Kepler/amateur.txt",
+    Path.home() / "AppData/Roaming/SatPC32/Kepler/cubesat.txt",
+    # NOT InterKeps2.txt: nothing in any .SQF references it, so it is an unused
+    # leftover. Ageing it produced a permanent false alarm -- a watchdog that
+    # cries wolf over a file nothing reads teaches you to ignore it, which is
+    # how the real staleness would hide all over again.
     Path.home() / "AppData/Roaming/SatPC32/nasabare.txt",
     Path.home() / "satpass/amateur.tle",
 ]
