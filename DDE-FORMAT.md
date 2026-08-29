@@ -311,3 +311,39 @@ moving the correct way.
 `Gpredict → AetherSDR rigctl :4532 → IC-9700` is therefore proven for sustained
 Doppler tracking, not just a one-off frequency set. Captured in
 `iss-doppler-2026-08-29.csv`.
+
+## ⛔ 2026-08-29 — a 2090-sample log of nothing, and how to tell
+
+The ISS window 06:19-06:54 UTC was logged at a clean 1 Hz with no gaps, and
+contains no pass. Kept as `iss-NOT-A-PASS-2026-08-29.csv` because the failure is
+more instructive than another good capture. Gpredict and AetherSDR were both
+found not running afterwards, and nothing was listening on 4532 — the engagement
+had been lost BEFORE AOS and was never re-verified.
+
+⭐⭐ **Two independent checks that catch this without needing the radio.**
+Either one alone would have caught it in seconds:
+
+**1. Magnitude.** Doppler is bounded by the orbit, not by the software:
+
+        f_rest * v_max / c  =  145.8e6 * 7400 / 3e8  ≈  ±3.5 kHz at 145.8 MHz
+
+The log showed **+87..+90 kHz**. That needs the ISS doing 185 km/s. Any offset
+more than ~4 kHz on 2 m is a WRONG VFO or a memory channel, never Doppler.
+
+**2. Shape — count direction reversals.** A real pass reverses **exactly once**,
+at TCA, where the range rate crosses zero. This log had **zero** reversals in 279
+tracked samples: it decayed monotonically (-1587 -> -74 Hz per step), which is
+something SETTLING toward a target, not tracking one. Same single-sweep property
+that the polar plot got wrong earlier — it shows up in the frequency too.
+
+⚠ **A flat line is the loudest symptom and the easiest to miss.** 1811 of the
+2090 samples were *exactly* 145.800000, bit-identical. Sampling continued
+happily the whole time. A logger that is working perfectly and a radio that is
+not being driven look identical unless you check the VALUES for variance.
+
+Contrast the genuine RS-44 capture: -1753 -> -2538 Hz, right order of magnitude,
+matched Skyfield's predicted -2166 Hz including sign.
+
+⛔ **Run the pre-AOS checklist, and run it AT AOS, not an hour before.** The
+check that matters is not "is Gpredict configured" but "is the radio's frequency
+CHANGING right now". Config was fine both times this failed; engagement was not.
