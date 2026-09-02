@@ -1,0 +1,248 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Shack-Track · Tonight's passes</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chivo:wght@400;700;900&family=Source+Sans+3:wght@400;600&family=JetBrains+Mono:wght@400;700&display=swap">
+<style>
+/* Palette lifted from design/interface-concepts.html, itself lifted from
+   AetherSDR's dark seed (src/core/ThemeSeedGenerated.cpp). */
+:root{
+  --ground:#EEF2F7; --panel:#FFFFFF; --panel-2:#E4EAF2; --edge:#C9D4E2;
+  --ink:#0F1520; --ink-2:#33404F; --label:#5C6B80;
+  --accent:#0089a8; --live:#1E9E56; --soon:#A96C00; --los:#C43333; --track:#0089a8;
+  --grid:#D6DEE9;
+  --shadow:0 1px 2px rgba(15,21,32,.06),0 8px 24px rgba(15,21,32,.05);
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --ground:#0f0f1a; --panel:#151b28; --panel-2:#1a2330; --edge:#304050;
+    --ink:#c8d8e8; --ink-2:#a8bcd0; --label:#8ea8c0;
+    --accent:#00b4d8; --live:#4dd87a; --soon:#ffb84d; --los:#ff4d4d; --track:#00b4d8;
+    --grid:#1a2330;
+    --shadow:0 1px 2px rgba(0,0,0,.5),0 10px 30px rgba(0,0,0,.4);
+  }
+}
+:root[data-theme="dark"]{
+  --ground:#0f0f1a; --panel:#151b28; --panel-2:#1a2330; --edge:#304050;
+  --ink:#c8d8e8; --ink-2:#a8bcd0; --label:#8ea8c0;
+  --accent:#00b4d8; --live:#4dd87a; --soon:#ffb84d; --los:#ff4d4d; --track:#00b4d8;
+  --grid:#1a2330;
+  --shadow:0 1px 2px rgba(0,0,0,.5),0 10px 30px rgba(0,0,0,.4);
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--ground);color:var(--ink);
+  font-family:"Source Sans 3",ui-sans-serif,system-ui,sans-serif;font-size:16px;line-height:1.5;
+  -webkit-font-smoothing:antialiased}
+.wrap{max-width:1080px;margin:0 auto;padding:36px 20px 80px;display:flex;flex-direction:column;gap:22px}
+h1{font-family:Chivo,ui-sans-serif,system-ui,sans-serif;font-weight:900;font-size:clamp(1.6rem,4vw,2.3rem);
+  letter-spacing:-.02em;line-height:1.05;margin:0}
+.mono{font-family:"JetBrains Mono",ui-monospace,monospace;font-variant-numeric:tabular-nums}
+.eyebrow{font-family:"JetBrains Mono",ui-monospace,monospace;font-size:.7rem;letter-spacing:.16em;
+  text-transform:uppercase;color:var(--label)}
+header{display:flex;flex-direction:column;gap:8px;border-bottom:1px solid var(--edge);padding-bottom:18px}
+.meta{display:flex;flex-wrap:wrap;gap:8px;margin-top:6px;align-items:center}
+.tag{font-family:"JetBrains Mono",ui-monospace,monospace;font-size:.7rem;border:1px solid var(--edge);
+  border-radius:999px;padding:4px 10px;color:var(--label)}
+.tag.ok{color:var(--live);border-color:var(--live)}
+.tag.warn{color:var(--soon);border-color:var(--soon)}
+.tag.bad{color:var(--los);border-color:var(--los)}
+.tag button{all:unset;cursor:pointer;color:inherit}
+.tag button:hover{text-decoration:underline}
+
+.mock{background:var(--panel);border:1px solid var(--edge);border-radius:10px;box-shadow:var(--shadow);overflow:hidden}
+.tl{padding:16px 22px;display:flex;flex-direction:column}
+.tlrow{display:grid;grid-template-columns:110px minmax(0,1fr) 96px;gap:16px;align-items:center;
+  padding:11px 0;border-bottom:1px solid var(--edge)}
+.tlrow:last-of-type{border-bottom:none}
+.tlrow.past{opacity:.45}
+.tlname{display:flex;flex-direction:column;gap:1px;min-width:0}
+.tlname b{font-family:Chivo,sans-serif;font-weight:700;font-size:.98rem;display:flex;gap:8px;align-items:center}
+.tlname span{font-family:"JetBrains Mono",ui-monospace,monospace;font-size:.64rem;color:var(--label);
+  letter-spacing:.06em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pill{font-family:"JetBrains Mono",ui-monospace,monospace;font-size:.58rem;letter-spacing:.12em;
+  text-transform:uppercase;padding:2px 7px;border-radius:999px;border:1px solid var(--live);color:var(--live)}
+.bar{position:relative;height:26px;background:var(--panel-2);border-radius:4px;overflow:hidden}
+.bar em{position:absolute;top:0;bottom:0;border-radius:4px;font-style:normal;display:flex;align-items:center;
+  justify-content:center;font-family:"JetBrains Mono",ui-monospace,monospace;font-size:.66rem;
+  color:var(--ground);font-weight:700;white-space:nowrap;overflow:hidden;min-width:3px}
+.bar em.hi{background:var(--live)}
+.bar em.mid{background:var(--track)}
+.bar em.lo{background:var(--label)}
+.bar .now{position:absolute;top:0;bottom:0;width:2px;background:var(--ink);opacity:.35}
+.bar .aside{position:absolute;top:0;bottom:0;display:flex;align-items:center;font-weight:400;
+  font-family:"JetBrains Mono",ui-monospace,monospace;font-size:.66rem;white-space:nowrap}
+.bar .aside.hi{color:var(--live)}
+.bar .aside.mid{color:var(--track)}
+.bar .aside.lo{color:var(--label)}
+.tlwhen{font-family:"JetBrains Mono",ui-monospace,monospace;font-variant-numeric:tabular-nums;font-size:.86rem;text-align:right}
+.tlwhen b{display:block;font-weight:700;font-size:.95rem}
+.tlwhen span{color:var(--label);font-size:.7rem}
+.tlwhen span.live{color:var(--live)}
+.tlaxis{display:grid;grid-template-columns:110px minmax(0,1fr) 96px;gap:16px;padding-top:8px}
+.axmarks{position:relative;height:14px;font-family:"JetBrains Mono",ui-monospace,monospace;font-size:.64rem;color:var(--label)}
+.axmarks span{position:absolute;transform:translateX(-50%)}
+.empty,.err{padding:26px 22px;color:var(--label);font-size:.95rem}
+.err{color:var(--los)}
+.err b{display:block;color:var(--ink);margin-bottom:4px}
+footer{font-size:.8rem;color:var(--label);display:flex;flex-wrap:wrap;gap:6px 18px}
+details{font-size:.85rem;color:var(--label)}
+details summary{cursor:pointer}
+.note{font-size:.9rem;color:var(--label);max-width:70ch}
+.note b{color:var(--ink-2);font-weight:600}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="eyebrow">Shack-Track · before the pass</div>
+    <h1>Tonight's passes</h1>
+    <div class="meta">
+      <span class="tag" id="qth">QTH …</span>
+      <span class="tag" id="window"><button id="hours">next 12 h</button></span>
+      <span class="tag" id="keps">keps …</span>
+      <span class="tag" id="clock">…</span>
+    </div>
+  </header>
+
+  <div class="mock"><div class="tl" id="tl"><div class="empty">Loading…</div></div></div>
+
+  <p class="note">Bar length is <b>time above the horizon</b>; colour is <b>elevation class</b>
+  (green ≥ 45°, cyan ≥ 20°, grey below). Times are local. Nothing here reads the radio.</p>
+
+  <footer>
+    <span id="src"></span>
+    <span id="gen"></span>
+  </footer>
+</div>
+
+<script>
+(() => {
+  const $ = (id) => document.getElementById(id);
+  const HOURS = [6, 12, 24];
+  let hours = 12;
+  try { hours = Number(localStorage.getItem('st.hours')) || 12; } catch (e) {}
+  let data = null;
+
+  const pad = (n) => String(n).padStart(2, '0');
+  const hhmm = (d) => `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  const hhmmZ = (d) => `${pad(d.getUTCHours())}${pad(d.getUTCMinutes())}Z`;
+  const rel = (secs) => {
+    const s = Math.abs(secs), m = Math.floor(s / 60), h = Math.floor(m / 60);
+    if (s < 60) return `${Math.floor(s)} s`;
+    if (m < 60) return `${m} min`;
+    return `${h} h ${pad(m % 60)}`;
+  };
+
+  function render() {
+    const tl = $('tl');
+    if (!data) return;
+    if (data.error) {
+      tl.innerHTML = `<div class="err"><b>Pass engine not reachable</b>${esc(data.error)}</div>`;
+      return;
+    }
+    const now = Date.now();
+    const t0 = Date.parse(data.generated);
+    const t1 = t0 + data.window_hours * 3600e3;
+    const span = t1 - t0;
+    const rows = [];
+    for (const p of data.passes) {
+      const aos = Date.parse(p.aos), los = Date.parse(p.los);
+      const left = Math.max(0, (aos - t0) / span * 100);
+      const width = Math.max(0.4, Math.min(100 - left, (los - aos) / span * 100));
+      const live = now >= aos && now < los;
+      const past = now >= los;
+      const mins = Math.round(p.duration_s / 60);
+      const when = live
+        ? `<span class="live">LOS in ${rel((los - now) / 1e3)}</span>`
+        : past ? `<span>done</span>` : `<span>in ${rel((aos - now) / 1e3)}</span>`;
+      const text = `${mins} min · ${Math.round(p.peak_el)}°`;
+      // Inside the bar when it is wide enough to hold the text, beside it otherwise.
+      const inside = width > 12;
+      const label = inside ? text : '';
+      const aside = inside ? '' : `<b class="aside ${p.el_class}" style="left:calc(${(left + width).toFixed(2)}% + 6px)">${text}</b>`;
+      const nowMark = (now >= t0 && now <= t1) ? `<i class="now" style="left:${((now - t0) / span * 100).toFixed(2)}%"></i>` : '';
+      rows.push(`<div class="tlrow${past ? ' past' : ''}" title="${esc(p.note || '')}">
+        <span class="tlname"><b>${esc(p.display)}${live ? '<span class="pill">live</span>' : ''}</b><span>${esc(p.mode)}</span></span>
+        <span class="bar"><em class="${p.el_class}" style="left:${left.toFixed(2)}%;width:${width.toFixed(2)}%">${label}</em>${aside}${nowMark}</span>
+        <span class="tlwhen"><b>${hhmm(new Date(aos))}</b>${when}</span>
+      </div>`);
+    }
+    if (!rows.length) rows.push(`<div class="empty">No passes above ${data.min_elevation_deg}° in the next ${data.window_hours} h.</div>`);
+
+    // Axis: one mark per whole local hour inside the window (every 2 h past 12 h).
+    const step = data.window_hours > 12 ? 2 : 1;
+    const marks = [];
+    const first = new Date(t0); first.setMinutes(0, 0, 0); first.setHours(first.getHours() + 1);
+    for (let d = first; d.getTime() <= t1; d = new Date(d.getTime() + step * 3600e3)) {
+      const x = (d.getTime() - t0) / span * 100;
+      marks.push(`<span style="left:${x.toFixed(2)}%">${hhmm(d)}</span>`);
+    }
+    rows.push(`<div class="tlaxis"><span></span><span class="axmarks">${marks.join('')}</span><span></span></div>`);
+    tl.innerHTML = rows.join('');
+
+    $('qth').textContent = `${data.qth.name} · ${data.qth.lat.toFixed(4)}, ${data.qth.lon.toFixed(4)}`;
+    $('src').textContent = `${data.passes.length} passes · ${data.tle_count} TLEs · newest epoch ${data.tle_newest_epoch || '?'}`
+      + (data.missing_from_tle.length ? ` · not in TLE: ${data.missing_from_tle.join(', ')}` : '');
+    $('gen').textContent = `computed ${hhmm(new Date(t0))} (${hhmmZ(new Date(t0))})`;
+    renderKeps();
+  }
+
+  function esc(s) { return String(s).replace(/[&<>"]/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+
+  async function loadPasses() {
+    try {
+      const r = await fetch(`/api/passes?hours=${hours}`, {cache: 'no-store'});
+      const text = await r.text();
+      try { data = JSON.parse(text); } catch (e) { data = {error: `HTTP ${r.status} ${r.statusText} (not JSON)`}; }
+      if (!r.ok && !data.error) data = {error: `HTTP ${r.status}`};
+    } catch (e) {
+      data = {error: String(e)};
+    }
+    render();
+  }
+
+  // The chip answers "how old are the elements these passes were computed from?"
+  // That is tle_newest_epoch from the pass engine itself, not a download check:
+  // a fresh file on a server the passes do not read would be a lie here.
+  let sourceHealth = '';
+  function renderKeps() {
+    const el = $('keps');
+    if (!data || data.error || !data.tle_newest_epoch) { el.textContent = 'keps: unknown'; el.className = 'tag bad'; return; }
+    const age = (Date.now() - Date.parse(data.tle_newest_epoch)) / 86400e3;
+    const ageTxt = age < 1 ? `${Math.round(age * 24)} h` : `${age.toFixed(1)} d`;
+    el.textContent = `keps ${ageTxt} old`;
+    el.className = 'tag ' + (age > 7 ? 'bad' : age > 3 ? 'warn' : 'ok');
+    el.title = `newest TLE epoch ${data.tle_newest_epoch}` + (sourceHealth ? `\n\nsources (keps-watch):\n${sourceHealth}` : '');
+  }
+  async function loadKeps() {
+    // Source health goes in the tooltip only; it fetches from the internet and
+    // says nothing about the file the passes were computed from.
+    try {
+      const r = await fetch('/api/keps', {cache: 'no-store'});
+      const k = await r.json();
+      sourceHealth = k.error ? `check failed: ${k.error}`
+        : (k.checks || []).map((c) => `${c.name}: ${c.detail || c.state}`).join('\n');
+    } catch (e) { sourceHealth = `check failed: ${e}`; }
+    renderKeps();
+  }
+
+  $('hours').addEventListener('click', () => {
+    hours = HOURS[(HOURS.indexOf(hours) + 1) % HOURS.length];
+    try { localStorage.setItem('st.hours', String(hours)); } catch (e) {}
+    $('hours').textContent = `next ${hours} h`;
+    loadPasses();
+  });
+  $('hours').textContent = `next ${hours} h`;
+
+  setInterval(() => { $('clock').textContent = `${hhmm(new Date())} local · ${hhmmZ(new Date())}`; render(); }, 1000);
+  setInterval(loadPasses, 60e3);
+  setInterval(loadKeps, 600e3);
+  loadPasses(); loadKeps();
+})();
+</script>
+</body>
+</html>
