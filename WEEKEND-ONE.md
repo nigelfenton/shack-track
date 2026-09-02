@@ -144,3 +144,19 @@ auth onto one half of a single-page app is worse than planning two.
 
 Deployment is weekend **two or later**. Weekend one is `localhost` on the hub —
 prove the pass list and the live view work before exposing anything.
+
+# Future: an AetherSDR applet that opens Shack-Track
+
+Nigel, 2026-09-02: *"would like this as an applet in AE that calls this up and opens the
+app's web page."* Recorded here so it is not lost; not weekend-one or -two work.
+
+Shape that fits AE's rules: a small applet (or a Tools-menu entry) that launches the
+operator's browser at the Shack-Track URL with `QDesktopServices::openUrl`, the URL a
+setting with a sensible default (`http://shack-hub:8781/`). Nothing satellite-specific
+lives in AE; it stays a consumer of AE the way ShackBook and Shack-Bench are. Because it
+adds a user-facing surface to AE it still needs an **RFC to Jeremy (@ten9876) first**
+(GOVERNANCE.md: features need an RFC, bug fixes do not). Embedding the page inside AE
+would mean QtWebEngine, which AE does not link; open-in-browser is the version to propose.
+
+Prerequisite worth doing first: the hub-side page reachable by a stable name
+(`shack-hub` resolves on the LAN; the g0jkn.com path for away-from-home).
