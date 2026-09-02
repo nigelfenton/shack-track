@@ -122,7 +122,7 @@ details summary{cursor:pointer}
 <script>
 (() => {
   const $ = (id) => document.getElementById(id);
-  const HOURS = [6, 12, 24];
+  const HOURS = [1, 6, 12, 24];
   let hours = 12;
   try { hours = Number(localStorage.getItem('st.hours')) || 12; } catch (e) {}
   let data = null;
@@ -173,11 +173,12 @@ details summary{cursor:pointer}
     }
     if (!rows.length) rows.push(`<div class="empty">No passes above ${data.min_elevation_deg}° in the next ${data.window_hours} h.</div>`);
 
-    // Axis: one mark per whole local hour inside the window (every 2 h past 12 h).
-    const step = data.window_hours > 12 ? 2 : 1;
+    // Axis marks: every 15 min for a window up to 2 h, hourly to 12 h, 2-hourly beyond.
+    const stepMin = data.window_hours <= 2 ? 15 : data.window_hours > 12 ? 120 : 60;
     const marks = [];
-    const first = new Date(t0); first.setMinutes(0, 0, 0); first.setHours(first.getHours() + 1);
-    for (let d = first; d.getTime() <= t1; d = new Date(d.getTime() + step * 3600e3)) {
+    const first = new Date(t0); first.setSeconds(0, 0);
+    first.setMinutes(Math.ceil((first.getMinutes() + 1) / stepMin) * stepMin);
+    for (let d = first; d.getTime() <= t1; d = new Date(d.getTime() + stepMin * 60e3)) {
       const x = (d.getTime() - t0) / span * 100;
       marks.push(`<span style="left:${x.toFixed(2)}%">${hhmm(d)}</span>`);
     }
