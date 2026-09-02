@@ -110,6 +110,37 @@ def _run_keps() -> dict:
     return data
 
 
+@app.get("/strip")
+def strip():
+    return send_from_directory(app.static_folder, "strip.html")
+
+
+@app.get("/api/next")
+def api_next():
+    """The one pass the status strip (and anything else small) needs.
+
+    `live` is the pass in progress right now, if any; `next` is the first pass
+    whose AOS is still ahead. Both are full pass records from /api/passes over
+    the next 24 h, so a consumer gets az track and frequencies without a second
+    call. Either can be null; both null means nothing above the horizon for a
+    day, which is a real answer and not an error.
+    """
+    try:
+        result = _cached("passes:24.0", PASS_TTL_S,
+                         lambda: engine.compute(engine.load_config(SATS), TLE, 24.0))
+    except (OSError, ValueError) as e:
+        return jsonify({"error": f"pass engine cannot read its inputs: {e}"}), 503
+    except Exception as e:  # noqa: BLE001
+        app.logger.exception("pass engine failed")
+        return jsonify({"error": f"pass engine failed: {type(e).__name__}: {e}"}), 500
+    now = _now_iso()
+    live = next((p for p in result["passes"] if p["aos"] <= now < p["los"]), None)
+    upcoming = next((p for p in result["passes"] if p["aos"] > now), None)
+    return jsonify({"now": now, "live": live, "next": upcoming,
+                    "tle_newest_epoch": result["tle_newest_epoch"],
+                    "qth": result["qth"]})
+
+
 @app.get("/api/keps")
 def api_keps():
     return jsonify(_cached("keps", KEPS_TTL_S, _run_keps))

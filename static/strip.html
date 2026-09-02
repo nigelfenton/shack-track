@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Shack-Track · status strip</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chivo:wght@700;900&family=JetBrains+Mono:wght@400;700&display=swap">
+<style>
+/* Concept C from design/interface-concepts.html. One line for a second monitor
+   or the shack display; sized by the viewport so it reads across the room. */
+:root{
+  --ground:#EEF2F7; --panel:#FFFFFF; --panel-2:#E4EAF2; --edge:#C9D4E2;
+  --ink:#0F1520; --label:#5C6B80;
+  --live:#1E9E56; --soon:#A96C00; --los:#C43333; --track:#0089a8;
+  --shadow:0 1px 2px rgba(15,21,32,.06),0 8px 24px rgba(15,21,32,.05);
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --ground:#0f0f1a; --panel:#151b28; --panel-2:#1a2330; --edge:#304050;
+    --ink:#c8d8e8; --label:#8ea8c0;
+    --live:#4dd87a; --soon:#ffb84d; --los:#ff4d4d; --track:#00b4d8;
+    --shadow:0 1px 2px rgba(0,0,0,.5),0 10px 30px rgba(0,0,0,.4);
+  }
+}
+:root[data-theme="dark"]{
+  --ground:#0f0f1a; --panel:#151b28; --panel-2:#1a2330; --edge:#304050;
+  --ink:#c8d8e8; --label:#8ea8c0;
+  --live:#4dd87a; --soon:#ffb84d; --los:#ff4d4d; --track:#00b4d8;
+  --shadow:0 1px 2px rgba(0,0,0,.5),0 10px 30px rgba(0,0,0,.4);
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0;background:var(--ground);color:var(--ink);font-family:"JetBrains Mono",ui-monospace,monospace;
+  display:flex;align-items:center;justify-content:center;padding:2vmin}
+.strip{display:flex;align-items:stretch;background:var(--panel);border:1px solid var(--edge);border-radius:10px;
+  overflow:hidden;box-shadow:var(--shadow);flex-wrap:wrap;width:100%;max-width:1400px}
+.stripe{width:6px;background:var(--label);flex:0 0 6px}
+.stripe.live{background:var(--live)}
+.stripe.soon{background:var(--soon)}
+.stripe.none{background:var(--los)}
+.cell{padding:1.6vmin 2.4vmin;border-right:1px solid var(--edge);display:flex;flex-direction:column;gap:.3vmin;min-width:0;flex:1 1 auto}
+.cell:last-child{border-right:none}
+.cell .k{font-size:clamp(.6rem,1.3vmin,.9rem);letter-spacing:.14em;text-transform:uppercase;color:var(--label)}
+.cell .v{font-size:clamp(1.1rem,3.4vmin,2.6rem);font-variant-numeric:tabular-nums;white-space:nowrap;line-height:1.15}
+.cell .s{font-size:clamp(.6rem,1.4vmin,.95rem);color:var(--label);white-space:nowrap}
+.cell.accent{background:var(--panel-2)}
+.cell.accent .v{font-family:Chivo,sans-serif;font-weight:900;color:var(--live);letter-spacing:-.02em}
+.cell.accent.soon .v{color:var(--ink)}
+.v.ok{color:var(--live)} .v.warn{color:var(--soon)} .v.bad{color:var(--los)} .v.dim{color:var(--label)}
+.foot{position:fixed;bottom:1vmin;right:2vmin;font-size:.7rem;color:var(--label)}
+.foot a{color:inherit}
+</style>
+</head>
+<body>
+<div class="strip" id="strip">
+  <div class="stripe" id="stripe"></div>
+  <div class="cell accent" id="c-next"><span class="k" id="k-next">Next</span><span class="v">…</span><span class="s"></span></div>
+  <div class="cell" id="c-aos"><span class="k">AOS</span><span class="v">…</span><span class="s"></span></div>
+  <div class="cell" id="c-count"><span class="k">Countdown</span><span class="v">…</span><span class="s"></span></div>
+  <div class="cell" id="c-el"><span class="k">Max el</span><span class="v">…</span><span class="s"></span></div>
+  <div class="cell" id="c-rotor"><span class="k">Rotor</span><span class="v dim">no rotor</span><span class="s">not wired up yet</span></div>
+  <div class="cell" id="c-keps"><span class="k">Keps</span><span class="v">…</span><span class="s"></span></div>
+</div>
+<div class="foot"><a href="/">pass list</a> · <span id="clock"></span></div>
+
+<script>
+(() => {
+  const $ = (id) => document.getElementById(id);
+  const set = (id, v, s, cls) => {
+    const c = $(id); const vv = c.querySelector('.v'); const ss = c.querySelector('.s');
+    vv.textContent = v; vv.className = 'v' + (cls ? ' ' + cls : ''); ss.textContent = s || '';
+  };
+  const pad = (n) => String(n).padStart(2, '0');
+  const hhmm = (d) => `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  const hhmmZ = (d) => `${pad(d.getUTCHours())}${pad(d.getUTCMinutes())}Z`;
+  const hms = (secs) => { const s = Math.max(0, Math.floor(secs)); return `${pad(Math.floor(s / 3600))}:${pad(Math.floor(s / 60) % 60)}:${pad(s % 60)}`; };
+  let data = null, fetchedAt = 0;
+
+  function render() {
+    $('clock').textContent = `${hhmm(new Date())} local · ${hhmmZ(new Date())}`;
+    if (!data) return;
+    const stripe = $('stripe');
+    if (data.error) {
+      stripe.className = 'stripe none';
+      set('c-next', 'no data', data.error, 'bad');
+      ['c-aos', 'c-count', 'c-el'].forEach((id) => set(id, '—', ''));
+      set('c-keps', 'unknown', '', 'bad');
+      return;
+    }
+    const now = Date.now();
+    const p = data.live || data.next;
+    if (!p) {
+      stripe.className = 'stripe none';
+      set('c-next', 'nothing', 'no pass in the next 24 h', 'dim');
+      ['c-aos', 'c-count', 'c-el'].forEach((id) => set(id, '—', ''));
+    } else {
+      const aos = Date.parse(p.aos), los = Date.parse(p.los);
+      const live = now >= aos && now < los;
+      const soon = !live && aos - now < 15 * 60e3;
+      stripe.className = 'stripe ' + (live ? 'live' : soon ? 'soon' : '');
+      $('c-next').className = 'cell accent' + (live ? '' : ' soon');
+      $('k-next').textContent = live ? 'Live' : 'Next';
+      set('c-next', p.display, p.mode);
+      set('c-aos', hhmm(new Date(aos)), `${hhmmZ(new Date(aos))} · LOS ${hhmm(new Date(los))}`);
+      set('c-count', live ? hms((los - now) / 1e3) : hms((aos - now) / 1e3), live ? 'to LOS' : 'to AOS', live ? 'ok' : '');
+      set('c-el', `${Math.round(p.peak_el)}°`, `${Math.round(p.aos_az)}° → ${Math.round(p.peak_az)}° → ${Math.round(p.los_az)}° · ${Math.round(p.duration_s / 60)} min`);
+    }
+    // Keps age from the elements the passes were computed with, same rule as the list.
+    if (data.tle_newest_epoch) {
+      const age = (now - Date.parse(data.tle_newest_epoch)) / 86400e3;
+      set('c-keps', age < 1 ? `${Math.round(age * 24)} h` : `${age.toFixed(1)} d`, 'newest epoch', age > 7 ? 'bad' : age > 3 ? 'warn' : 'ok');
+    }
+    // Stale-data guard: if the last successful fetch is over 5 minutes old, say so.
+    if (now - fetchedAt > 5 * 60e3) set('c-keps', 'stale', `last update ${hhmm(new Date(fetchedAt))}`, 'bad');
+  }
+
+  async function load() {
+    try {
+      const r = await fetch('/api/next', {cache: 'no-store'});
+      const text = await r.text();
+      try { data = JSON.parse(text); } catch (e) { data = {error: `HTTP ${r.status} (not JSON)`}; }
+      if (!r.ok && !data.error) data = {error: `HTTP ${r.status}`};
+      if (!data.error) fetchedAt = Date.now();
+    } catch (e) { data = {error: String(e)}; }
+    render();
+  }
+  setInterval(render, 1000);
+  setInterval(load, 30e3);
+  load();
+})();
+</script>
+</body>
+</html>

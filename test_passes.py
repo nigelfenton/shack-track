@@ -60,14 +60,20 @@ check("clipped pass LOS is the window end",
       all(abs((datetime.fromisoformat(p["los"].replace("Z", "+00:00")) - end).total_seconds()) <= 1
           for p in clipped), f"{len(clipped)} clipped")
 
-# 3. A window that STARTS mid-pass: in_progress, AOS == window start.
+# 3. A window that STARTS mid-pass: in_progress, and the AOS is the pass's REAL
+#    AOS (before the window start), not the moment we looked.
 start = aos + timedelta(seconds=mid["duration_s"] // 2)
 r = run(6, now=start)
 live = [p for p in r["passes"] if p["in_progress"]]
 check("window starting mid-pass reports it in progress",
       any(p["sat"] == mid["sat"] for p in live))
-check("in-progress AOS is the window start",
-      all(p["aos"] == start.replace(microsecond=0).isoformat().replace("+00:00", "Z") for p in live))
+check("in-progress pass keeps its real AOS",
+      any(p["sat"] == mid["sat"] and p["aos"] == mid["aos"] for p in live),
+      f"expected AOS {mid['aos']}")
+check("no pass that ended before the window start is listed",
+      all(p["los"] > start.replace(microsecond=0).isoformat().replace("+00:00", "Z") for p in r["passes"]))
+check("in-progress is the ONLY pass with AOS before the window start",
+      all(p["in_progress"] == (p["aos"] < start.replace(microsecond=0).isoformat().replace("+00:00", "Z")) for p in r["passes"]))
 
 # 4. Physics bounds nobody should ever break: elevation within [min_el, 90],
 #    azimuths within [0, 360), LOS after AOS, sorted by AOS.

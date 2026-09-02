@@ -92,37 +92,43 @@ def _iso(t) -> str:
     return t.utc_datetime().replace(microsecond=0).isoformat().replace("+00:00", "Z")
 
 
-def passes_for(sat, site, ts, t0, t1, min_el: float) -> list[dict]:
-    """Every pass of `sat` over `site` between t0 and t1 above min_el.
+# How far before the window start to search, so a pass already in progress at
+# t0 is reported with the AOS it really had rather than "when we looked".
+# Nothing in the amateur list stays up longer than IO-117's ~70 min at MEO;
+# LEO passes are under 20 min. 90 min covers both with margin.
+LOOKBACK_MIN = 90
 
-    A pass already in progress at t0 has no rise event inside the window;
-    find_events reports it starting with culmination or set, so it is
-    synthesised here with AOS = t0 and flagged `in_progress`.
+
+def passes_for(sat, site, ts, t0, t1, min_el: float) -> list[dict]:
+    """Every pass of `sat` over `site` still up at or after t0, ending by t1.
+
+    The search starts LOOKBACK_MIN before t0 so a pass in progress at t0 keeps
+    its true AOS and is flagged `in_progress`; passes that ended before t0 are
+    dropped. A pass still up at t1 is reported with LOS = t1 and `clipped`.
     """
     diff = sat - site
     out = []
-    times, events = sat.find_events(site, t0, t1, altitude_degrees=min_el)
+    t_search = ts.tt_jd(t0.tt - LOOKBACK_MIN / 1440.0)
+    times, events = sat.find_events(site, t_search, t1, altitude_degrees=min_el)
 
     aos = culm = None
-    in_progress = False
-    el_now, _ = _altaz(diff, t0)
-    if el_now >= min_el:
-        aos, in_progress = t0, True
+    el_start, _ = _altaz(diff, t_search)
+    if el_start >= min_el:
+        aos = t_search                    # up before the lookback even began
 
     for t, ev in zip(times, events):
         if ev == 0:                       # rise
-            aos, culm, in_progress = t, None, False
+            aos, culm = t, None
         elif ev == 1:                     # culminate
             if aos is not None:
                 culm = t
         elif ev == 2:                     # set
             if aos is None:
                 continue
-            if culm is None:
-                culm = aos                # set-only: peak is wherever we started
-            out.append(_describe(sat, diff, ts, aos, culm, t, in_progress))
+            if t.tt > t0.tt:              # ended before the window: not a pass to show
+                peak = aos if culm is None else culm
+                out.append(_describe(sat, diff, ts, aos, peak, t, in_progress=aos.tt < t0.tt))
             aos = culm = None
-            in_progress = False
 
     # Pass still up at the end of the window: report it with LOS = t1, clipped.
     # NOT `culm or aos`: a Skyfield Time has no truth value (its __len__ raises
@@ -130,7 +136,7 @@ def passes_for(sat, site, ts, t0, t1, min_el: float) -> list[dict]:
     # 2026-09-02 the first time anyone clicked it.
     if aos is not None:
         peak = aos if culm is None else culm
-        out.append(_describe(sat, diff, ts, aos, peak, t1, in_progress, clipped=True))
+        out.append(_describe(sat, diff, ts, aos, peak, t1, in_progress=aos.tt < t0.tt, clipped=True))
     return out
 
 
