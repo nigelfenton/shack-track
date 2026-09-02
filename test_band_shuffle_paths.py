@@ -16,9 +16,26 @@ records every CI-V frame the script sends. The assertions are about the FRAMES
 and the END STATE, which is what the script actually controls.
 
 What this proves: the branch is reachable, it sends 07 B0 then 07 D0, and it
-NEVER sends 07 D1. What it does not prove: that the real radio responds to those
-frames as modelled. The 07 B0 / 07 D0 pair is verified on hardware (2026-09-01);
-the re-exchange ordering is verified here.
+NEVER sends 07 D1.
+
+BOTH PATHS ARE NOW ALSO HARDWARE-VERIFIED (2026-09-01, live IC-9700). Case 1
+was confirmed first. Case 2 was confirmed afterwards and fired on the first
+attempt, in both directions:
+
+    asking for 23 cm, the first exchange left 70 cm on Main
+        after select:      CAT 435.645  pan 435.645   <- wrong band
+        07 B0 exchange again
+        after re-exchange: CAT 145.067  pan 145.067
+        after tune:        CAT 1296.100 pan 1296.100  <- both on target
+    and the return leg to 2 m triggered it again.
+
+CAT and the pan agreed at every step of both runs, which is the property the
+old 07 D1 fallback broke. So the stub's model of the radio matched the radio.
+
+Keep these tests anyway: the arrangement that fires case 2 depends on which two
+bands happen to be live, there is no non-mutating read of Sub to check it
+first, and reproducing it on demand means shuffling a live transmitter blind.
+The stub makes the branch testable in CI and on a bench with no radio at all.
 
 Run:  python3 test_band_shuffle_paths.py
 Exits non-zero on first failure.
