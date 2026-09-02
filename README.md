@@ -87,3 +87,12 @@ before you read a single number.
 Second defect, caught on review: the "travelled" segment climbed to 44° then fell back to
 34° while the panel said *rising*. Marker, path end, panel figures and the aria description
 must all describe **one** instant — now az 132, el 44, still climbing toward a 61° peak.
+
+## ⚠ About `pass-RS44-2026-08-29.csv`
+
+Despite the name it is **not a pass**: 735 rows, 04:01–04:13Z, elevation −50° to −29°,
+never above the horizon, `radio_hz` empty throughout. It is the twelve minutes of
+`sat_capture.py` output *before* AOS. It is still useful for one thing — its `up_hz`/`dn_hz`
+columns pin the Doppler sign convention (`test_passes.py` uses it for exactly that) — but
+do not cite it as the RS-44 pass evidence. The proven live capture is the radio log
+described in `DDE-FORMAT.md` (−1753 → −2538 Hz against Skyfield's −2166 Hz).

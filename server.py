@@ -28,6 +28,7 @@ from __future__ import annotations
 
 import json
 import os
+import socket
 import subprocess
 import sys
 import threading
@@ -48,6 +49,13 @@ BIND = os.environ.get("SHACKTRACK_BIND", "127.0.0.1")
 
 PASS_TTL_S = 60
 KEPS_TTL_S = 600
+LIVE_TTL_S = 0.9       # the view polls at 1 Hz; never serve two callers two computes
+RADIO_TTL_S = 0.9
+RIGCTL_TIMEOUT_S = 0.7
+
+# AetherSDR IS a rigctl server (port 4532) -- no Hamlib. aurora13's LAN address
+# is DHCP-assigned and has moved before; the Tailscale address is stable.
+RIGCTL = os.environ.get("SHACKTRACK_RIGCTL", "10.0.0.104:4532")
 
 app = Flask(__name__, static_folder=str(HERE / "static"), static_url_path="/static")
 _lock = threading.Lock()
@@ -139,6 +147,62 @@ def api_next():
     return jsonify({"now": now, "live": live, "next": upcoming,
                     "tle_newest_epoch": result["tle_newest_epoch"],
                     "qth": result["qth"]})
+
+
+@app.get("/live")
+def live_page():
+    return send_from_directory(app.static_folder, "live.html")
+
+
+def _rigctl(cmd: bytes) -> str | None:
+    """One rigctl round trip. RECEIVE ONLY: only 'f' and 'm' are ever sent.
+    None means unreachable, and the caller must SAY so rather than reuse a
+    stale number -- a frozen frequency presented as current is the failure
+    the 2026-08-29 ISS log was made of."""
+    if not RIGCTL:
+        return None
+    host, _, port = RIGCTL.rpartition(":")
+    try:
+        with socket.create_connection((host, int(port)), timeout=RIGCTL_TIMEOUT_S) as s:
+            s.sendall(cmd + b"\n")
+            return s.recv(200).decode("utf-8", "replace").strip()
+    except (OSError, ValueError):
+        return None
+
+
+def _read_radio() -> dict:
+    f = _rigctl(b"f")
+    if f is None:
+        return {"reachable": False, "target": RIGCTL or "(no rigctl configured)"}
+    m = _rigctl(b"m") or ""
+    try:
+        hz = int(f.split()[0])
+    except (ValueError, IndexError):
+        return {"reachable": False, "target": RIGCTL, "error": f"unexpected reply to f: {f!r}"}
+    mode = m.split("\n")[0] if m else ""
+    return {"reachable": True, "target": RIGCTL, "hz": hz, "mode": mode,
+            "read_at": _now_iso()}
+
+
+@app.get("/api/live")
+def api_live():
+    """Once-a-second truth for the operating view: bird geometry + Doppler from
+    Skyfield, and what the radio is ACTUALLY on from rigctl. The two are
+    reported side by side and never merged -- the point of the view is to
+    show when they disagree."""
+    try:
+        state = _cached("live", LIVE_TTL_S,
+                        lambda: engine.live_state(engine.load_config(SATS), TLE))
+    except (OSError, ValueError) as e:
+        return jsonify({"error": f"pass engine cannot read its inputs: {e}"}), 503
+    except Exception as e:  # noqa: BLE001
+        app.logger.exception("live state failed")
+        return jsonify({"error": f"live state failed: {type(e).__name__}: {e}"}), 500
+    radio = _cached("radio", RADIO_TTL_S, _read_radio)
+    out = dict(state)
+    out["radio"] = radio
+    out["rotor"] = {"present": False}
+    return jsonify(out)
 
 
 @app.get("/api/keps")

@@ -100,6 +100,51 @@ try:
 except TypeError as e:
     check("results are plain-JSON serialisable", False, str(e))
 
+# 4c. Doppler sign convention against pass-RS44-2026-08-29.csv. NOTE: despite
+#     its name that file is 12 min of PRE-AOS geometry (el -50 to -29, never
+#     above the horizon), so it cannot check a pass -- but its up_hz/dn_hz
+#     columns encode the convention a Gpredict-driven radio was seen to follow
+#     that night, and physics does not care about the horizon. Three instants,
+#     engine vs file, using the same range rate the file recorded so only the
+#     FORMULA is under test (its elements were a few hours older than ours).
+import csv
+rows = [r for r in csv.DictReader(open(HERE / "pass-RS44-2026-08-29.csv", encoding="utf-8")) if r["range_rate_kms"]]
+picks = [rows[0], rows[len(rows) // 2], rows[-1]]
+worst = 0
+for r in picks:
+    rr = float(r["range_rate_kms"])
+    dn = engine.doppler(435640_000, rr, uplink=False)["hz"]
+    up = engine.doppler(145965_000, rr, uplink=True)["hz"]
+    worst = max(worst, abs(dn - int(r["dn_hz"])), abs(up - int(r["up_hz"])))
+check("Doppler formula reproduces the recorded up/down columns", worst <= 5,
+      f"worst {worst} Hz at three instants")
+check("Doppler sign: approaching bird heard HIGH on the downlink",
+      engine.doppler(435640_000, -3.0, uplink=False)["shift_hz"] > 0 and
+      engine.doppler(145965_000, -3.0, uplink=True)["shift_hz"] < 0)
+# Magnitude bound from reference_doppler_sanity_checks: |shift| <= f * 7.4/c.
+check("Doppler magnitude inside the orbital bound",
+      abs(engine.doppler(145800_000, 7.4, uplink=False)["shift_hz"]) < 3700)
+
+# 4d. live_state at TCA of a computed pass: must pick that pass as live, put
+#     the bird at the pass's own peak, and have range rate crossing zero there.
+tca = datetime.fromisoformat(mid["tca"].replace("Z", "+00:00"))
+ls = engine.live_state(CFG, TLE, now=tca)
+check("live_state picks the pass in progress", ls["state"] == "live" and ls["pass"]["sat"] == mid["sat"],
+      f"state={ls['state']} sat={ls['pass'] and ls['pass']['sat']}")
+check("live_state geometry at TCA is the pass peak",
+      abs(ls["geometry"]["el"] - mid["peak_el"]) < 0.3 and abs(ls["geometry"]["az"] - mid["peak_az"]) < 1.0,
+      f"el {ls['geometry']['el']} vs peak {mid['peak_el']}, az {ls['geometry']['az']} vs {mid['peak_az']}")
+check("range rate is ~0 at TCA", abs(ls["geometry"]["range_rate_kms"]) < 0.15,
+      f"{ls['geometry']['range_rate_kms']} km/s")
+before = engine.live_state(CFG, TLE, now=tca - timedelta(minutes=3))["geometry"]["range_rate_kms"]
+after = engine.live_state(CFG, TLE, now=tca + timedelta(minutes=3))["geometry"]["range_rate_kms"]
+check("range rate is negative before TCA and positive after (one reversal)", before < 0 < after,
+      f"{before} -> {after} km/s")
+try:
+    json.dumps(ls); check("live_state is plain-JSON serialisable", True)
+except TypeError as e:
+    check("live_state is plain-JSON serialisable", False, str(e))
+
 # 5. Every configured satellite resolves in the checked-in TLE.
 check("every configured satellite is in the TLE", not long["missing_from_tle"],
       ", ".join(long["missing_from_tle"]) or "all present")

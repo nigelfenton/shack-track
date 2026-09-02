@@ -165,6 +165,83 @@ def _describe(sat, diff, ts, aos, culm, los, in_progress, clipped=False) -> dict
     }
 
 
+# --- live geometry and Doppler ------------------------------------------------
+
+C_KM_S = 299_792.458
+
+
+def geometry(sat, site, t) -> dict:
+    """Where the bird is NOW from `site`: az/el, range and range rate.
+
+    Range rate is what Doppler is made of. Negative = approaching (downlink
+    heard HIGH, uplink must be sent LOW); it crosses zero at TCA.
+    """
+    d = (sat - site).at(t)
+    alt, az, dist = d.altaz()
+    _, _, _, _, _, rr = d.frame_latlon_and_rates(site)
+    return {
+        "az": round(float(az.degrees), 2), "el": round(float(alt.degrees), 2),
+        "range_km": round(float(dist.km), 1),
+        "range_rate_kms": round(float(rr.km_per_s), 4),
+    }
+
+
+def doppler(f_hz: float | None, range_rate_kms: float, uplink: bool) -> dict | None:
+    """Frequency the radio should be on for f_hz to arrive at/leave the bird.
+
+    Downlink: we RECEIVE, so f_obs = f_rest * (1 - rr/c).
+    Uplink:   we TRANSMIT so it ARRIVES on f_rest: f_tx = f_rest * (1 + rr/c).
+    Same convention as sat_capture.py and the 2026-08-29 RS-44 capture, where
+    a radio driven by Gpredict was seen to follow the downlink value.
+    """
+    if not f_hz:
+        return None
+    sign = 1.0 if uplink else -1.0
+    f = f_hz * (1.0 + sign * range_rate_kms / C_KM_S)
+    return {"rest_hz": int(f_hz), "hz": int(round(f)), "shift_hz": int(round(f - f_hz))}
+
+
+def live_state(cfg: dict, tle_path: Path, now: datetime | None = None) -> dict:
+    """What the operating view needs, once a second.
+
+    Picks the pass in progress (else the next one within 24 h), and reports the
+    bird's current geometry and Doppler-corrected frequencies for it. Also
+    reports `az_el_now` for the next bird even while it is below the horizon,
+    so the view can show where it will rise.
+    """
+    ts = load.timescale()
+    now = now or datetime.now(timezone.utc)
+    t = ts.from_datetime(now)
+    result = compute(cfg, tle_path, 24.0, now=now)
+    now_iso = result["generated"]
+    chosen = next((p for p in result["passes"] if p["aos"] <= now_iso < p["los"]), None)
+    state = "live" if chosen else "next"
+    if chosen is None:
+        chosen = next((p for p in result["passes"] if p["aos"] > now_iso), None)
+        state = "next" if chosen else "none"
+
+    out = {"now": now_iso, "state": state, "pass": chosen,
+           "tle_newest_epoch": result["tle_newest_epoch"], "qth": result["qth"]}
+    if chosen is None:
+        return out
+
+    tles = parse_tles(tle_path, ts)
+    _, sat = match_tle(chosen["tle_name"], tles)
+    q = cfg["qth"]
+    site = wgs84.latlon(q["lat"], q["lon"], elevation_m=q.get("alt_m", 0))
+    g = geometry(sat, site, t)
+    up = (chosen.get("uplink_khz") or 0) * 1000
+    dn = (chosen.get("downlink_khz") or 0) * 1000
+    out.update({
+        "geometry": g,
+        "uplink": doppler(up, g["range_rate_kms"], uplink=True),
+        "downlink": doppler(dn, g["range_rate_kms"], uplink=False),
+        "seconds_to_aos": int(round((datetime.fromisoformat(chosen["aos"].replace("Z", "+00:00")) - now).total_seconds())),
+        "seconds_to_los": int(round((datetime.fromisoformat(chosen["los"].replace("Z", "+00:00")) - now).total_seconds())),
+    })
+    return out
+
+
 # --- top level ----------------------------------------------------------------
 
 def compute(cfg: dict, tle_path: Path, hours: float, min_el: float | None = None,
