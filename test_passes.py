@@ -91,6 +91,15 @@ else:
     check("peak elevation, azimuth and ordering bounds", True, f"{len(long['passes'])} passes")
 check("passes sorted by AOS", long["passes"] == sorted(long["passes"], key=lambda p: p["aos"]))
 
+# 4b. The result must survive the standard json encoder (Flask uses it): NumPy
+#     scalars leaking out of Skyfield comparisons took the hub down once.
+import json
+try:
+    json.dumps(r); json.dumps(long)
+    check("results are plain-JSON serialisable", True)
+except TypeError as e:
+    check("results are plain-JSON serialisable", False, str(e))
+
 # 5. Every configured satellite resolves in the checked-in TLE.
 check("every configured satellite is in the TLE", not long["missing_from_tle"],
       ", ".join(long["missing_from_tle"]) or "all present")

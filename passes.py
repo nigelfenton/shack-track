@@ -156,8 +156,11 @@ def _describe(sat, diff, ts, aos, culm, los, in_progress, clipped=False) -> dict
         "peak_el": round(peak_el, 1), "peak_az": round(peak_az, 1),
         "aos_az": round(aos_az, 1), "los_az": round(los_az, 1),
         "el_class": el_class(peak_el),
-        "in_progress": in_progress,
-        "clipped": clipped,
+        # bool(): the comparisons upstream are on NumPy floats and yield
+        # numpy.bool_, which json/Flask refuse to serialise (500 on the hub,
+        # 2026-09-02). Coerce at the boundary so callers never see it.
+        "in_progress": bool(in_progress),
+        "clipped": bool(clipped),
         "track": track,
     }
 
