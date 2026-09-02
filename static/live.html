@@ -159,7 +159,11 @@ footer a{color:inherit}
       $('mode').textContent = p.mode;
       // Countdown ticks locally between fetches, from the server's own seconds.
       const drift = (now - fetchedAt) / 1e3;
-      $('tos').textContent = live ? `LOS in ${mmss(data.seconds_to_los - drift)}` : `AOS in ${mmss(data.seconds_to_aos - drift)} · ${hhmm(new Date(Date.parse(p.aos)))}`;
+      // AOS/LOS are crossings of the configured floor (5°), not the horizon --
+      // a bird can be visible on the rim while still counting down to AOS.
+      const floor = data.min_elevation_deg != null ? `${data.min_elevation_deg}°` : '';
+      $('tos').textContent = live ? `LOS (${floor}) in ${mmss(data.seconds_to_los - drift)}`
+        : `${g && g.el > 0 ? 'above horizon · ' : ''}AOS (${floor}) in ${mmss(data.seconds_to_aos - drift)} · ${hhmm(new Date(Date.parse(p.aos)))}`;
 
       // Sky plot: whole arc faint, the part already flown solid, dot at now.
       const pts = p.track.map(([az, el]) => proj(az, el));
@@ -201,9 +205,15 @@ footer a{color:inherit}
     } else {
       const dn = data.downlink, delta = dn ? r.hz - dn.hz : null;
       const agree = delta !== null && Math.abs(delta) <= 50;
-      setRow('radio', `${mhz(r.hz)}<small>MHz ${r.mode || ''}</small>`,
-             delta === null ? `rigctl f` : agree ? `matches downlink ±${Math.abs(delta)} Hz` : `${delta > 0 ? '+' : ''}${delta} Hz off downlink`,
-             '', delta === null ? 'dim' : agree ? '' : 'warn');
+      // Past ~1 MHz this is not a Doppler miss, it is the wrong band or a
+      // memory channel: say that instead of a nine-digit number.
+      const far = delta !== null && Math.abs(delta) > 1e6;
+      const verdict = delta === null ? 'rigctl f'
+        : agree ? `matches downlink ±${Math.abs(delta)} Hz`
+        : far ? `not on this bird · ${(Math.abs(delta) / 1e6).toFixed(1)} MHz away`
+        : `${delta > 0 ? '+' : ''}${delta} Hz off downlink`;
+      setRow('radio', `${mhz(r.hz)}<small>MHz ${r.mode || ''}</small>`, verdict,
+             '', delta === null ? 'dim' : agree ? '' : far ? 'dim' : 'warn');
     }
     if (now - fetchedAt > 5000) setRow('radio', 'stale', `last update ${hhmm(new Date(fetchedAt))}`, 'bad', 'bad');
     $('src').textContent = `Skyfield · newest TLE epoch ${data.tle_newest_epoch || '?'} · ${data.qth ? data.qth.name : ''}`;

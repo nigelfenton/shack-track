@@ -221,6 +221,7 @@ def live_state(cfg: dict, tle_path: Path, now: datetime | None = None) -> dict:
         state = "next" if chosen else "none"
 
     out = {"now": now_iso, "state": state, "pass": chosen,
+           "min_elevation_deg": result["min_elevation_deg"],
            "tle_newest_epoch": result["tle_newest_epoch"], "qth": result["qth"]}
     if chosen is None:
         return out
