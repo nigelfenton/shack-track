@@ -3,7 +3,12 @@
 A better satellite operating **interface**, not another tracker. The orbital maths is
 already solved by SatPC32; this is the operating surface that isn't there yet.
 
-Status: **design only.** No code yet.
+Status: **weekend one, item 1 + Concept B built 2026-09-02** and running on shack-hub as
+`shack-track.service` at **http://10.0.0.51:8781/** (LAN only; the g0jkn.com path is not
+wired up yet). `passes.py` (Skyfield engine), `server.py` (Flask, `/api/passes`,
+`/api/keps`, `/api/health`), `static/index.html` (Concept B, live), `satellites.json`
+(the birds), `test_passes.py` (run it after touching the engine). Reads
+`/home/nigel/satpass/amateur.tle`, the file the daily FD renderer refreshes.
 
 ## Why not build a tracker
 
