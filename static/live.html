@@ -68,6 +68,36 @@ body{margin:0;background:var(--ground);color:var(--ink);font-family:"Source Sans
 .err{padding:26px 22px;color:var(--los)} .err b{display:block;color:var(--ink)}
 .note{font-size:.9rem;color:var(--label);max-width:72ch}
 .note b{color:var(--ink-2);font-weight:600}
+
+/* ---- tabbed lower panel ---- */
+.panel{background:var(--panel);border:1px solid var(--edge);border-radius:10px;box-shadow:var(--shadow);overflow:hidden}
+.tabs{display:flex;gap:0;border-bottom:1px solid var(--edge);background:var(--panel-2)}
+.tabs button{all:unset;cursor:pointer;padding:10px 18px;font-family:"JetBrains Mono",ui-monospace,monospace;
+  font-size:.7rem;letter-spacing:.12em;text-transform:uppercase;color:var(--label);border-bottom:2px solid transparent}
+.tabs button:hover{color:var(--ink-2)}
+.tabs button[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--track);background:var(--panel)}
+.tabs .count{margin-left:7px;font-size:.62rem;opacity:.75}
+.tabbody{padding:18px 22px}
+.tabbody[hidden]{display:none}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px 22px}
+.cell{display:flex;flex-direction:column;gap:1px;min-width:0}
+.cell .k{font-family:"JetBrains Mono",ui-monospace,monospace;font-size:.6rem;letter-spacing:.13em;
+  text-transform:uppercase;color:var(--label)}
+.cell .v{font-family:"JetBrains Mono",ui-monospace,monospace;font-variant-numeric:tabular-nums;
+  font-size:1rem;color:var(--ink);white-space:nowrap}
+.cell .v small{font-size:.68rem;color:var(--label);margin-left:4px}
+.grouphead{font-family:"JetBrains Mono",ui-monospace,monospace;font-size:.62rem;letter-spacing:.14em;
+  text-transform:uppercase;color:var(--label);margin:4px 0 10px;padding-top:14px;border-top:1px solid var(--edge)}
+.grouphead:first-child{padding-top:0;border-top:none;margin-top:0}
+.log{font-family:"JetBrains Mono",ui-monospace,monospace;font-size:.76rem;max-height:280px;overflow-y:auto;
+  display:flex;flex-direction:column-reverse;gap:2px}
+.log div{display:flex;gap:12px;padding:2px 0;border-bottom:1px solid var(--edge)}
+.log time{color:var(--label);flex:0 0 auto}
+.log span{color:var(--ink-2);min-width:0;word-break:break-word}
+.log .warn span{color:var(--soon)}
+.log .bad span{color:var(--los)}
+.log .good span{color:var(--live)}
+.log .empty{color:var(--label);border:none}
 footer{font-size:.8rem;color:var(--label);display:flex;flex-wrap:wrap;gap:6px 18px}
 footer a{color:inherit}
 </style>
@@ -110,11 +140,66 @@ footer a{color:inherit}
     </div>
   </div>
 
-  <p class="note"><b>Radio is what the radio says it is on</b>, read back over rigctl each second.
-  <b>Downlink</b> and <b>Uplink</b> are what Skyfield says they should be right now. When the radio
-  is not reachable the row says so; it never shows an old number as current. <b>Uplink is computed
-  only</b>: rigctl shows one receiver, and the IC-9700's Sub cannot be read without swapping CAT
-  focus (AetherSDR #5348), so nothing on this page confirms the transmit frequency. Nothing here is clickable.</p>
+  <div class="panel">
+    <div class="tabs" role="tablist">
+      <button role="tab" id="tab-bird" aria-selected="true" aria-controls="pane-bird">Bird</button>
+      <button role="tab" id="tab-trsp" aria-selected="false" aria-controls="pane-trsp">Transponder</button>
+      <button role="tab" id="tab-log" aria-selected="false" aria-controls="pane-log">Log<span class="count" id="logcount"></span></button>
+      <button role="tab" id="tab-about" aria-selected="false" aria-controls="pane-about">About</button>
+    </div>
+
+    <div class="tabbody" id="pane-bird" role="tabpanel" aria-labelledby="tab-bird">
+      <div class="grouphead">Where it is</div>
+      <div class="grid">
+        <div class="cell"><span class="k">Sub-satellite point</span><span class="v" id="b-ssp">…</span></div>
+        <div class="cell"><span class="k">Grid</span><span class="v" id="b-grid">…</span></div>
+        <div class="cell"><span class="k">Altitude</span><span class="v" id="b-alt">…</span></div>
+        <div class="cell"><span class="k">Footprint</span><span class="v" id="b-foot">…</span></div>
+        <div class="cell"><span class="k">Velocity</span><span class="v" id="b-vel">…</span></div>
+        <div class="cell"><span class="k">Illumination</span><span class="v" id="b-sun">…</span></div>
+      </div>
+      <div class="grouphead">The link</div>
+      <div class="grid">
+        <div class="cell"><span class="k">Slant range</span><span class="v" id="b-range">…</span></div>
+        <div class="cell"><span class="k">Range rate</span><span class="v" id="b-rr">…</span></div>
+        <div class="cell"><span class="k">Path loss</span><span class="v" id="b-loss">…</span></div>
+        <div class="cell"><span class="k">Signal delay</span><span class="v" id="b-delay">…</span></div>
+      </div>
+      <div class="grouphead">The orbit</div>
+      <div class="grid">
+        <div class="cell"><span class="k">Orbit number</span><span class="v" id="b-orbit">…</span></div>
+        <div class="cell"><span class="k">Mean anomaly</span><span class="v" id="b-ma">…</span></div>
+        <div class="cell"><span class="k">Period</span><span class="v" id="b-period">…</span></div>
+        <div class="cell"><span class="k">Inclination</span><span class="v" id="b-incl">…</span></div>
+        <div class="cell"><span class="k">Eccentricity</span><span class="v" id="b-ecc">…</span></div>
+        <div class="cell"><span class="k">Elements</span><span class="v" id="b-epoch">…</span></div>
+      </div>
+    </div>
+
+    <div class="tabbody" id="pane-trsp" role="tabpanel" aria-labelledby="tab-trsp" hidden>
+      <div class="grid">
+        <div class="cell"><span class="k">Downlink (rest)</span><span class="v" id="t-dn">…</span></div>
+        <div class="cell"><span class="k">Uplink (rest)</span><span class="v" id="t-up">…</span></div>
+        <div class="cell"><span class="k">Transponder</span><span class="v" id="t-inv">…</span></div>
+        <div class="cell"><span class="k">Modes</span><span class="v" id="t-mode">…</span></div>
+        <div class="cell"><span class="k">Doppler now</span><span class="v" id="t-dop">…</span></div>
+        <div class="cell"><span class="k">Source</span><span class="v" id="t-src">…</span></div>
+      </div>
+      <p class="note" style="margin-top:16px" id="t-note"></p>
+    </div>
+
+    <div class="tabbody" id="pane-log" role="tabpanel" aria-labelledby="tab-log" hidden>
+      <div class="log" id="logbody"><div class="empty">Nothing logged yet this session.</div></div>
+    </div>
+
+    <div class="tabbody" id="pane-about" role="tabpanel" aria-labelledby="tab-about" hidden>
+      <p class="note"><b>Radio is what the radio says it is on</b>, read back over rigctl each second.
+      <b>Downlink</b> and <b>Uplink</b> are what Skyfield says they should be right now. When the radio
+      is not reachable the row says so; it never shows an old number as current. <b>Uplink is computed
+      only</b>: rigctl shows one receiver, and the IC-9700's Sub cannot be read without swapping CAT
+      focus (AetherSDR #5348), so nothing on this page confirms the transmit frequency. Nothing here is clickable.</p>
+    </div>
+  </div>
 
   <footer>
     <span id="src"></span>
@@ -138,6 +223,98 @@ footer a{color:inherit}
     return [CX + r * Math.sin(a), CY - r * Math.cos(a)];
   };
   const pathOf = (pts) => pts.length ? 'M ' + pts.map(([x, y]) => `${x.toFixed(1)} ${y.toFixed(1)}`).join(' L ') : '';
+
+  const esc = (t) => String(t).replace(/[&<>"]/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+  // ---- tabs ---------------------------------------------------------------
+  const TABS = ['bird', 'trsp', 'log', 'about'];
+  function showTab(name) {
+    TABS.forEach((t) => {
+      $('tab-' + t).setAttribute('aria-selected', String(t === name));
+      $('pane-' + t).hidden = (t !== name);
+    });
+    try { localStorage.setItem('st.tab', name); } catch (e) {}
+  }
+  TABS.forEach((t) => $('tab-' + t).addEventListener('click', () => showTab(t)));
+  let startTab = 'bird';
+  try { startTab = localStorage.getItem('st.tab') || 'bird'; } catch (e) {}
+  showTab(TABS.includes(startTab) ? startTab : 'bird');
+
+  // ---- log ----------------------------------------------------------------
+  // Session-only: what changed and when, so the page can answer "what just
+  // happened?" without reading a process on another machine.
+  const logLines = [];
+  function logit(text, cls) {
+    const n = new Date();
+    logLines.push({t: `${pad(n.getHours())}:${pad(n.getMinutes())}:${pad(n.getSeconds())}`, text, cls: cls || ''});
+    if (logLines.length > 300) logLines.shift();
+    $('logcount').textContent = `(${logLines.length})`;
+    $('logbody').innerHTML = logLines.map((l) =>
+      `<div class="${l.cls}"><time>${l.t}</time><span>${esc(l.text)}</span></div>`).join('');
+  }
+
+  // Record the TRANSITIONS worth knowing about, not every poll.
+  const seen = {};
+  function watch(data) {
+    const p = data.pass || {}, r = data.radio || {};
+    const st = data.error ? 'error' : `${data.state}:${p.sat || '-'}`;
+    if (st !== seen.state) {
+      if (data.error) logit(`feed error: ${data.error}`, 'bad');
+      else if (data.state === 'live') logit(`${p.display} AOS - live, peak ${Math.round(p.peak_el)} deg`, 'good');
+      else if (seen.state && seen.state.startsWith('live')) logit(`${seen.state.split(':')[1]} LOS`, 'warn');
+      else if (p.display) logit(`next pass: ${p.display} at ${hhmm(new Date(Date.parse(p.aos)))}`);
+      seen.state = st;
+    }
+    if (r.reachable !== seen.reach) {
+      logit(r.reachable ? `radio reachable (${r.target})` : `radio NOT reachable (${r.target || '?'})`,
+            r.reachable ? 'good' : 'bad');
+      seen.reach = r.reachable;
+    }
+    if (r.reachable && data.downlink) {
+      const d = Math.abs(r.hz - data.downlink.hz);
+      const band = d <= 50 ? 'matched' : d > 1e6 ? 'other' : 'off';
+      if (band !== seen.band) {
+        if (band === 'matched') logit(`radio matches the downlink (+/-${d} Hz)`, 'good');
+        else if (band === 'off') logit(`radio is ${((r.hz - data.downlink.hz) / 1e3).toFixed(1)} kHz off the downlink centre`, 'warn');
+        else logit(`radio is on another band (${(d / 1e6).toFixed(1)} MHz away)`);
+        seen.band = band;
+      }
+    }
+  }
+
+  // ---- bird + transponder panes ------------------------------------------
+  const put = (id, v) => { const el = $(id); if (el) el.innerHTML = v; };
+  function fillPanes(data) {
+    const b = data.bird, p = data.pass || {}, g = data.geometry || {};
+    if (b) {
+      const ns = b.lat >= 0 ? 'N' : 'S', ew = b.lon >= 0 ? 'E' : 'W';
+      put('b-ssp', `${Math.abs(b.lat).toFixed(2)}&deg;${ns} ${Math.abs(b.lon).toFixed(2)}&deg;${ew}`);
+      put('b-grid', b.grid || '-');
+      put('b-alt', `${Math.round(b.alt_km)}<small>km</small>`);
+      put('b-foot', `${Math.round(b.footprint_km)}<small>km radius</small>`);
+      put('b-vel', `${b.speed_kms.toFixed(2)}<small>km/s</small>`);
+      put('b-sun', (b.sunlit === null || b.sunlit === undefined) ? '-' : (b.sunlit ? 'sunlit' : 'eclipse'));
+      put('b-range', `${Math.round(b.slant_range_km)}<small>km</small>`);
+      put('b-rr', `${g.range_rate_kms > 0 ? '+' : ''}${(g.range_rate_kms || 0).toFixed(3)}<small>km/s</small>`);
+      put('b-loss', b.path_loss_db ? `${b.path_loss_db.toFixed(1)}<small>dB</small>` : '-');
+      put('b-delay', `${b.delay_ms.toFixed(2)}<small>ms</small>`);
+      put('b-orbit', b.orbit ? String(b.orbit) : '-');
+      put('b-ma', b.mean_anomaly !== undefined ? `${b.mean_anomaly.toFixed(1)}<small>deg</small>` : '-');
+      put('b-period', b.period_min ? `${b.period_min.toFixed(1)}<small>min</small>` : '-');
+      put('b-incl', b.inclination_deg ? `${b.inclination_deg.toFixed(2)}<small>deg</small>` : '-');
+      put('b-ecc', b.eccentricity !== undefined ? b.eccentricity.toFixed(6) : '-');
+      put('b-epoch', data.tle_newest_epoch ? data.tle_newest_epoch.slice(0, 10) : '-');
+    }
+    if (p.downlink_khz) {
+      put('t-dn', `${(p.downlink_khz / 1000).toFixed(3)}<small>MHz</small>`);
+      put('t-up', p.uplink_khz ? `${(p.uplink_khz / 1000).toFixed(3)}<small>MHz</small>` : '-');
+      put('t-inv', p.xpdr === 'REV' ? 'inverting (REV)' : p.xpdr === 'NOR' ? 'non-inverting (NOR)' : '-');
+      put('t-mode', esc(p.mode || '-'));
+      put('t-dop', data.downlink ? `${data.downlink.shift_hz >= 0 ? '+' : ''}${data.downlink.shift_hz}<small>Hz on the downlink</small>` : '-');
+      put('t-src', esc(p.source || 'satellites.json'));
+      $('t-note').textContent = p.note || '';
+    }
+  }
 
   function setRow(id, v, d, vcls, dcls) {
     $(id + '-v').innerHTML = v; $(id + '-v').className = 'v' + (vcls ? ' ' + vcls : '');
@@ -225,6 +402,8 @@ footer a{color:inherit}
     }
     if (now - fetchedAt > 5000) setRow('radio', 'stale', `last update ${hhmm(new Date(fetchedAt))}`, 'bad', 'bad');
     $('src').textContent = `Skyfield · newest TLE epoch ${data.tle_newest_epoch || '?'} · ${data.qth ? data.qth.name : ''}`;
+    fillPanes(data);
+    watch(data);
   }
 
   async function load() {

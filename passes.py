@@ -29,6 +29,13 @@ from pathlib import Path
 import numpy as np
 from skyfield.api import EarthSatellite, load, wgs84
 
+# de421 gives the sunlit flag (a linear bird in eclipse is often switched off).
+# It is a download on first use; without it `sunlit` is simply null.
+try:
+    _EPH = load("de421.bsp")
+except Exception:  # noqa: BLE001 -- offline, or no write access to the cache
+    _EPH = None
+
 HERE = Path(__file__).resolve().parent
 DEFAULT_SATS = HERE / "satellites.json"
 DEFAULT_TLE = HERE / "amateur.tle"
@@ -170,6 +177,9 @@ def _describe(sat, diff, ts, aos, culm, los, in_progress, clipped=False) -> dict
 C_KM_S = 299_792.458
 
 
+EARTH_R_KM = 6371.0
+
+
 def geometry(sat, site, t) -> dict:
     """Where the bird is NOW from `site`: az/el, range and range rate.
 
@@ -184,6 +194,73 @@ def geometry(sat, site, t) -> dict:
         "range_km": round(float(dist.km), 1),
         "range_rate_kms": round(float(rr.km_per_s), 4),
     }
+
+
+def bird(sat, site, t, downlink_hz: float | None = None) -> dict:
+    """The satellite's own state -- the fields Gpredict's window carries.
+
+    Everything here is about the BIRD, not about us pointing at it: where it is
+    over the Earth, how high and how fast, how much of the world can see it,
+    and where it is in its orbit. Path loss and delay come from the slant range
+    and so belong to the link, but they are what an operator reads next to it.
+    """
+    geo = sat.at(t)
+    sp = wgs84.subpoint(geo)
+    alt_km = float(sp.elevation.km)
+    # Speed in the geocentric frame; velocity is in AU/day.
+    vx, vy, vz = geo.velocity.km_per_s
+    speed = float((vx * vx + vy * vy + vz * vz) ** 0.5)
+    # Footprint: the great-circle radius of the visible cap, horizon at 0 deg.
+    import math
+    r = EARTH_R_KM + alt_km
+    central = math.degrees(math.acos(min(1.0, EARTH_R_KM / r)))
+    out = {
+        "lat": round(float(sp.latitude.degrees), 3),
+        "lon": round(float(sp.longitude.degrees), 3),
+        "alt_km": round(alt_km, 1),
+        "speed_kms": round(speed, 3),
+        "footprint_km": round(2 * math.pi * EARTH_R_KM * central / 360.0, 0),
+        "orbit": int(getattr(sat.model, "revnum", 0) or 0),
+        "period_min": round(2 * math.pi / sat.model.no_kozai, 1) if getattr(sat.model, "no_kozai", 0) else None,
+        "inclination_deg": round(math.degrees(sat.model.inclo), 2) if hasattr(sat.model, "inclo") else None,
+        "eccentricity": round(float(sat.model.ecco), 6) if hasattr(sat.model, "ecco") else None,
+        "grid": maidenhead(float(sp.latitude.degrees), float(sp.longitude.degrees)),
+        "sunlit": bool(geo.is_sunlit(_EPH)) if _EPH is not None else None,
+    }
+    # Mean anomaly (0-360) says where in the orbit it is; Gpredict shows it
+    # because the linear-transponder birds are often scheduled on it.
+    if hasattr(sat.model, "mo"):
+        mm = sat.model.no_kozai * 1440.0 / (2 * math.pi)   # rev/day
+        days = t.tt - sat.epoch.tt
+        ma = (math.degrees(sat.model.mo) + 360.0 * mm * days) % 360.0
+        out["mean_anomaly"] = round(ma, 1)
+        out["orbit"] = int((getattr(sat.model, "revnum", 0) or 0) + mm * days)
+    # Link numbers: free-space path loss and one-way delay for the downlink.
+    d = (sat - site).at(t)
+    _, _, dist = d.altaz()
+    rng = float(dist.km)
+    out["slant_range_km"] = round(rng, 1)
+    out["delay_ms"] = round(rng / 299.792458, 2)
+    if downlink_hz:
+        out["path_loss_db"] = round(
+            20 * math.log10(rng * 1000.0) + 20 * math.log10(downlink_hz) - 147.55, 1)
+    return out
+
+
+def maidenhead(lat: float, lon: float) -> str:
+    """6-character grid square, the way every ham names a position."""
+    lon += 180.0
+    lat += 90.0
+    a = chr(ord("A") + int(lon // 20))
+    b = chr(ord("A") + int(lat // 10))
+    c = str(int((lon % 20) // 2))
+    d = str(int(lat % 10))
+    # Subsquares: 24 per field, so a longitude subsquare is 5 minutes of arc
+    # (2 deg / 24) and a latitude one is 2.5 minutes (1 deg / 24). Getting the
+    # longitude divisor wrong put II22TB one square east as II22ub.
+    e = chr(ord("a") + int((lon % 2) / 2 * 24))
+    f = chr(ord("a") + int((lat % 1) * 24))
+    return a + b + c + d + e + f
 
 
 def doppler(f_hz: float | None, range_rate_kms: float, uplink: bool) -> dict | None:
@@ -244,6 +321,7 @@ def live_state(cfg: dict, tle_path: Path, now: datetime | None = None,
     dn = (chosen.get("downlink_khz") or 0) * 1000
     out.update({
         "geometry": g,
+        "bird": bird(sat, site, t, downlink_hz=dn or None),
         "uplink": doppler(up, g["range_rate_kms"], uplink=True),
         "downlink": doppler(dn, g["range_rate_kms"], uplink=False),
         "seconds_to_aos": int(round((datetime.fromisoformat(chosen["aos"].replace("Z", "+00:00")) - now).total_seconds())),
@@ -280,6 +358,7 @@ def compute(cfg: dict, tle_path: Path, hours: float, min_el: float | None = None
                 "mode": s.get("mode", ""),
                 "uplink_khz": s.get("uplink_khz"), "downlink_khz": s.get("downlink_khz"),
                 "xpdr": s.get("xpdr"), "note": s.get("note", ""),
+                "source": s.get("source", ""),
             })
             passes.append(p)
     passes.sort(key=lambda p: p["aos"])
