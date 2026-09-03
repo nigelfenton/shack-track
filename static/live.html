@@ -51,6 +51,7 @@ body{margin:0;background:var(--ground);color:var(--ink);font-family:"Source Sans
 .row .v{font-family:"JetBrains Mono",ui-monospace,monospace;font-variant-numeric:tabular-nums;font-size:1.22rem;color:var(--ink);white-space:nowrap}
 .row .v small{font-size:.72rem;color:var(--label);margin-left:6px;letter-spacing:.04em}
 .row .v.bad{color:var(--los);font-size:1rem}
+.row .v.computed{color:var(--ink-2);opacity:.85}
 .row .d{font-family:"JetBrains Mono",ui-monospace,monospace;font-size:.78rem;color:var(--live);text-align:right;white-space:nowrap}
 .row .d.warn{color:var(--soon)} .row .d.bad{color:var(--los)} .row .d.dim{color:var(--label)}
 .satline{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:6px}
@@ -111,7 +112,9 @@ footer a{color:inherit}
 
   <p class="note"><b>Radio is what the radio says it is on</b>, read back over rigctl each second.
   <b>Downlink</b> and <b>Uplink</b> are what Skyfield says they should be right now. When the radio
-  is not reachable the row says so; it never shows an old number as current. Nothing here is clickable.</p>
+  is not reachable the row says so; it never shows an old number as current. <b>Uplink is computed
+  only</b>: rigctl shows one receiver, and the IC-9700's Sub cannot be read without swapping CAT
+  focus (AetherSDR #5348), so nothing on this page confirms the transmit frequency. Nothing here is clickable.</p>
 
   <footer>
     <span id="src"></span>
@@ -178,8 +181,13 @@ footer a{color:inherit}
       const dir = rr < -0.05 ? 'approaching' : rr > 0.05 ? 'receding' : 'at TCA';
       setRow('dn', data.downlink ? `${mhz(data.downlink.hz)}<small>MHz ${p.mode.split(' ')[0]}</small>` : '—',
              data.downlink ? `${data.downlink.shift_hz >= 0 ? '+' : ''}${data.downlink.shift_hz} Hz · ${dir}` : 'no downlink listed', '', 'dim');
-      setRow('up', data.uplink ? `${mhz(data.uplink.hz)}<small>MHz</small>` : '—',
-             data.uplink ? `${data.uplink.shift_hz >= 0 ? '+' : ''}${data.uplink.shift_hz} Hz · ${rr.toFixed(2)} km/s` : 'no uplink listed', '', 'dim');
+      // Uplink is COMPUTED ONLY. rigctl exposes one slice (Main), and the
+      // IC-9700's Sub receiver has no non-mutating read (AetherSDR #5348), so
+      // nothing here confirms what the transmit side is actually on. Say so,
+      // in the same place the Radio row says "matches" -- the two rows must
+      // not look equally authoritative.
+      setRow('up', data.uplink ? `${mhz(data.uplink.hz)}<small>MHz · computed</small>` : '—',
+             data.uplink ? `${data.uplink.shift_hz >= 0 ? '+' : ''}${data.uplink.shift_hz} Hz · not read back` : 'no uplink listed', 'computed', 'warn');
       setRow('azel', `${Math.round(g.az)}°<small>az</small> &nbsp; ${g.el.toFixed(1)}°<small>el</small>`,
              data.rotor && data.rotor.present ? `rotor ${data.rotor.az}°` : 'no rotor', '', 'dim');
 
