@@ -224,8 +224,13 @@ def api_live():
         cfg = engine.load_config(SATS)
         sat = (request.args.get("sat") or "").strip() or None
         passes24 = _cached("passes:24.0", PASS_TTL_S, lambda: engine.compute(cfg, TLE, 24.0))
-        state = _cached(f"live:{sat or '*'}", LIVE_TTL_S,
-                        lambda: engine.live_state(cfg, TLE, precomputed=passes24, sat=sat))
+        # Read the radio FIRST when no pin is set, so the view can follow the
+        # bird the operator is actually listening to rather than the clock.
+        radio_first = _cached("radio", RADIO_TTL_S, _read_radio) if not sat else None
+        rhz = radio_first.get("hz") if (radio_first and radio_first.get("reachable")) else None
+        state = _cached(f"live:{sat or '*'}:{(rhz or 0) // 100000}", LIVE_TTL_S,
+                        lambda: engine.live_state(cfg, TLE, precomputed=passes24, sat=sat,
+                                                  radio_hz=rhz))
     except (OSError, ValueError) as e:
         return jsonify({"error": f"pass engine cannot read its inputs: {e}"}), 503
     except Exception as e:  # noqa: BLE001
@@ -246,7 +251,7 @@ def _live_for(sat: str) -> dict:
     try:
         cfg = engine.load_config(SATS)
         passes24 = _cached("passes:24.0", PASS_TTL_S, lambda: engine.compute(cfg, TLE, 24.0))
-        return _cached(f"live:{sat}", LIVE_TTL_S,
+        return _cached(f"live:{sat}:pinned", LIVE_TTL_S,
                        lambda: engine.live_state(cfg, TLE, precomputed=passes24, sat=sat))
     except Exception as e:  # noqa: BLE001
         return {"error": f"{type(e).__name__}: {e}"}

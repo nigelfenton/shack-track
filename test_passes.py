@@ -145,6 +145,29 @@ try:
 except TypeError as e:
     check("live_state is plain-JSON serialisable", False, str(e))
 
+# 4e. follow_radio: the view should follow the bird the RADIO is on, because on
+#     2026-09-02 it drew AO-123 and then AO-27 while the radio was on RS-44 all
+#     evening. Evidence order: an explicit pin, then the radio, then the clock.
+tca_mid = datetime.fromisoformat(mid["tca"].replace("Z", "+00:00"))
+on_its_downlink = mid["downlink_khz"] * 1000
+r_follow = engine.live_state(CFG, TLE, now=tca_mid, radio_hz=on_its_downlink)
+check("follows the bird the radio is tuned to",
+      r_follow["selected_by"] == "radio" and r_follow["pass"]["sat"] == mid["sat"],
+      f"{r_follow['selected_by']} / {r_follow['pass']['display']}")
+# A frequency that is nobody's downlink must NOT claim a bird.
+r_none = engine.live_state(CFG, TLE, now=tca_mid, radio_hz=145_900_000)
+check("a frequency that is no bird's downlink falls back to the schedule",
+      r_none["selected_by"] == "schedule", r_none["selected_by"])
+# An explicit pin outranks the radio.
+r_pin = engine.live_state(CFG, TLE, now=tca_mid, radio_hz=on_its_downlink, sat="RS-44")
+check("an explicit pin outranks the radio",
+      r_pin["selected_by"] == "sat" and r_pin["pass"]["sat"] == "RS-44",
+      f"{r_pin['selected_by']} / {r_pin['pass'] and r_pin['pass']['display']}")
+# A bird below the horizon must not be followed on frequency alone.
+below = engine.live_state(CFG, TLE, now=tca_mid - timedelta(hours=3), radio_hz=on_its_downlink)
+check("a bird that is not up is not followed on frequency alone",
+      below["selected_by"] == "schedule", below["selected_by"])
+
 # 5. Every configured satellite resolves in the checked-in TLE.
 check("every configured satellite is in the TLE", not long["missing_from_tle"],
       ", ".join(long["missing_from_tle"]) or "all present")

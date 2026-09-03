@@ -278,8 +278,55 @@ def doppler(f_hz: float | None, range_rate_kms: float, uplink: bool) -> dict | N
     return {"rest_hz": int(f_hz), "hz": int(round(f)), "shift_hz": int(round(f - f_hz))}
 
 
+# How close the radio must be to a bird's Doppler-corrected downlink before we
+# believe it is listening to that bird. A linear transponder is ~60 kHz wide
+# and the operator tunes inside it, so this must cover half a passband plus
+# Doppler -- but no wider, or it starts claiming birds that merely share a
+# band. 145.900 is 45 kHz from JO-97 and is NOT JO-97; a 120 kHz window said
+# it was.
+FOLLOW_WINDOW_HZ = 40_000
+
+
+def follow_radio(passes: list[dict], radio_hz: int | None, now_iso: str,
+                 range_rates: dict | None = None) -> dict | None:
+    """Which listed bird is the radio actually listening to, if any?
+
+    The view used to pick the earliest live pass, which on 2026-09-02 meant it
+    drew AO-123, then AO-27, while the radio was on RS-44 the whole time --
+    three wrong birds in one evening. The radio's own frequency is better
+    evidence of the operator's intent than the clock is.
+
+    Only passes that are ACTUALLY UP are candidates: matching the frequency of
+    a bird still below the horizon is a coincidence, not a choice, and would
+    have the view following something the operator cannot hear.
+    """
+    if not radio_hz:
+        return None
+    best, best_delta = None, None
+    for p in passes:
+        dn_khz = p.get("downlink_khz")
+        if not dn_khz:
+            continue
+        if not (p["aos"] <= now_iso < p["los"]):
+            continue
+        # Compare against the Doppler-corrected downlink where we know the
+        # range rate, else the rest frequency; the window is wide enough that
+        # a few kHz of Doppler cannot change the answer.
+        centre = dn_khz * 1000
+        rr = (range_rates or {}).get(p["sat"])
+        if rr is not None:
+            d = doppler(centre, rr, uplink=False)
+            if d:
+                centre = d["hz"]
+        delta = abs(radio_hz - centre)
+        if delta <= FOLLOW_WINDOW_HZ and (best_delta is None or delta < best_delta):
+            best, best_delta = p, delta
+    return best
+
+
 def live_state(cfg: dict, tle_path: Path, now: datetime | None = None,
-               precomputed: dict | None = None, sat: str | None = None) -> dict:
+               precomputed: dict | None = None, sat: str | None = None,
+               radio_hz: int | None = None) -> dict:
     """What the operating view needs, once a second.
 
     Picks the pass in progress (else the next one within 24 h), and reports the
@@ -300,13 +347,26 @@ def live_state(cfg: dict, tle_path: Path, now: datetime | None = None,
     # earliest live pass, else the next one. Passes overlap more than you'd
     # think -- AO-27 and RS-44 did on 2026-09-02.
     cands = [p for p in result["passes"] if not sat or p["sat"].lower() == sat.lower()]
-    chosen = next((p for p in cands if p["aos"] <= now_iso < p["los"]), None)
-    state = "live" if chosen else "next"
-    if chosen is None:
-        chosen = next((p for p in cands if p["aos"] > now_iso), None)
-        state = "next" if chosen else "none"
 
-    out = {"now": now_iso, "state": state, "pass": chosen, "selected_by": "sat" if sat else "schedule",
+    # Selection, in order of how good the evidence is:
+    #   1. an explicit ?sat= pin -- the operator said so
+    #   2. the bird the RADIO is listening to -- the operator did so
+    #   3. the schedule -- a guess, and the one that was wrong all evening
+    chosen, how = None, "schedule"
+    if sat:
+        how = "sat"
+    elif radio_hz:
+        chosen = follow_radio(cands, radio_hz, now_iso)
+        if chosen is not None:
+            how = "radio"
+
+    if chosen is None:
+        chosen = next((p for p in cands if p["aos"] <= now_iso < p["los"]), None)
+        if chosen is None:
+            chosen = next((p for p in cands if p["aos"] > now_iso), None)
+    state = "none" if chosen is None else ("live" if chosen["aos"] <= now_iso < chosen["los"] else "next")
+
+    out = {"now": now_iso, "state": state, "pass": chosen, "selected_by": how,
            "min_elevation_deg": result["min_elevation_deg"],
            "tle_newest_epoch": result["tle_newest_epoch"], "qth": result["qth"]}
     if chosen is None:

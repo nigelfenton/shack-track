@@ -427,7 +427,8 @@ footer a{color:inherit}
     } else {
       $('sat').textContent = p.display;
       $('state').textContent = live ? 'Live' : 'Next'; $('state').className = 'pill ' + (live ? 'live' : 'next');
-      $('mode').textContent = p.mode + (data.selected_by === 'sat' ? ' · pinned' : '');
+      const by = {sat: ' · pinned', radio: ' · following the radio', schedule: ''}[data.selected_by] || '';
+      $('mode').textContent = p.mode + by;
       // Countdown ticks locally between fetches, from the server's own seconds.
       const drift = (now - fetchedAt) / 1e3;
       // AOS/LOS are crossings of the configured floor (5°), not the horizon --
