@@ -201,7 +201,8 @@ def doppler(f_hz: float | None, range_rate_kms: float, uplink: bool) -> dict | N
     return {"rest_hz": int(f_hz), "hz": int(round(f)), "shift_hz": int(round(f - f_hz))}
 
 
-def live_state(cfg: dict, tle_path: Path, now: datetime | None = None) -> dict:
+def live_state(cfg: dict, tle_path: Path, now: datetime | None = None,
+               precomputed: dict | None = None) -> dict:
     """What the operating view needs, once a second.
 
     Picks the pass in progress (else the next one within 24 h), and reports the
@@ -212,8 +213,11 @@ def live_state(cfg: dict, tle_path: Path, now: datetime | None = None) -> dict:
     ts = load.timescale()
     now = now or datetime.now(timezone.utc)
     t = ts.from_datetime(now)
-    result = compute(cfg, tle_path, 24.0, now=now)
-    now_iso = result["generated"]
+    # `precomputed` is the server's cached 24 h pass list. Without it every
+    # 1 Hz poll recomputed 14 birds x 24 h (seconds on the hub) and the live
+    # endpoint timed out under its own polling on 2026-09-02.
+    result = precomputed or compute(cfg, tle_path, 24.0, now=now)
+    now_iso = now.replace(microsecond=0).isoformat().replace("+00:00", "Z")
     chosen = next((p for p in result["passes"] if p["aos"] <= now_iso < p["los"]), None)
     state = "live" if chosen else "next"
     if chosen is None:

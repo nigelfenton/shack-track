@@ -191,8 +191,10 @@ def api_live():
     reported side by side and never merged -- the point of the view is to
     show when they disagree."""
     try:
+        cfg = engine.load_config(SATS)
+        passes24 = _cached("passes:24.0", PASS_TTL_S, lambda: engine.compute(cfg, TLE, 24.0))
         state = _cached("live", LIVE_TTL_S,
-                        lambda: engine.live_state(engine.load_config(SATS), TLE))
+                        lambda: engine.live_state(cfg, TLE, precomputed=passes24))
     except (OSError, ValueError) as e:
         return jsonify({"error": f"pass engine cannot read its inputs: {e}"}), 503
     except Exception as e:  # noqa: BLE001
