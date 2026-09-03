@@ -88,6 +88,15 @@ Second defect, caught on review: the "travelled" segment climbed to 44° then fe
 34° while the panel said *rising*. Marker, path end, panel figures and the aria description
 must all describe **one** instant — now az 132, el 44, still climbing toward a 61° peak.
 
+## ⚠ About the capture files
+
+**Neither RS-44 capture in this folder is a clean reference.** Both have a note or a caveat:
+
+| file | what it is |
+|---|---|
+| `rs44-capture-2026-09-02.csv` | the real 41° pass, but contaminated — logger started 25 min early on 2 m, and the operator hand-tuned against a recentring driver. Its own verdict says NOT PROVEN. See `rs44-capture-2026-09-02.NOTES.md`. |
+| `pass-RS44-2026-08-29.csv` | despite the name, **not a pass at all** — 12 min of pre-AOS geometry, see below. |
+
 ## ⚠ About `pass-RS44-2026-08-29.csv`
 
 Despite the name it is **not a pass**: 735 rows, 04:01–04:13Z, elevation −50° to −29°,
