@@ -39,6 +39,7 @@ from pathlib import Path
 from flask import Flask, jsonify, request, send_from_directory
 
 import passes as engine
+from tracker import Tracker
 
 HERE = Path(__file__).resolve().parent
 TLE = Path(os.environ.get("SHACKTRACK_TLE", HERE / "amateur.tle"))
@@ -56,6 +57,14 @@ RIGCTL_TIMEOUT_S = 0.7
 # AetherSDR IS a rigctl server (port 4532) -- no Hamlib. aurora13's LAN address
 # is DHCP-assigned and has moved before; the Tailscale address is stable.
 RIGCTL = os.environ.get("SHACKTRACK_RIGCTL", "10.0.0.104:4532")
+
+# Where the standing engagement is remembered across a restart. An unattended
+# overnight capture must not end because the hub rebooted.
+TRACK_STATE = Path(os.environ.get("SHACKTRACK_STATE", HERE / "tracker-state.json"))
+
+# Set SHACKTRACK_TRACK=0 to serve the pages read-only, with no ability to tune
+# the radio at all -- what a public deployment would want.
+TRACK_ENABLED = os.environ.get("SHACKTRACK_TRACK", "1") not in ("0", "false", "no")
 
 app = Flask(__name__, static_folder=str(HERE / "static"), static_url_path="/static")
 _lock = threading.Lock()
@@ -226,7 +235,48 @@ def api_live():
     out = dict(state)
     out["radio"] = radio
     out["rotor"] = {"present": False}
+    tr = tracker.status()
+    tr["enabled"] = TRACK_ENABLED
+    out["tracker"] = tr
     return jsonify(out)
+
+
+def _live_for(sat: str) -> dict:
+    """Live state for one bird, from the same cache the operating view reads."""
+    try:
+        cfg = engine.load_config(SATS)
+        passes24 = _cached("passes:24.0", PASS_TTL_S, lambda: engine.compute(cfg, TLE, 24.0))
+        return _cached(f"live:{sat}", LIVE_TTL_S,
+                       lambda: engine.live_state(cfg, TLE, precomputed=passes24, sat=sat))
+    except Exception as e:  # noqa: BLE001
+        return {"error": f"{type(e).__name__}: {e}"}
+
+
+tracker = Tracker(TRACK_STATE, _live_for, _rigctl)
+
+
+@app.get("/api/track")
+def api_track_status():
+    st = tracker.status()
+    st["enabled"] = TRACK_ENABLED
+    st["log"] = tracker.log()[-60:]
+    return jsonify(st)
+
+
+@app.post("/api/track")
+def api_track_set():
+    """Engage or disengage. Engaging is a STANDING instruction: it survives LOS,
+    a server restart and the radio going away, until it is turned off."""
+    if not TRACK_ENABLED:
+        return jsonify({"ok": False, "error": "tracking is disabled on this server"}), 403
+    body = request.get_json(silent=True) or {}
+    if body.get("engage"):
+        sat = (body.get("sat") or "").strip()
+        if not sat:
+            return jsonify({"ok": False, "error": "sat is required"}), 400
+        out = tracker.engage(sat, offset=int(body.get("offset", 0)))
+        return jsonify(out), (200 if out.get("ok") else 409)
+    return jsonify(tracker.disengage())
 
 
 @app.get("/api/keps")
@@ -255,4 +305,11 @@ if __name__ == "__main__":
         except Exception as e:  # noqa: BLE001
             print(f"shack-track: warm-up failed: {e}", file=sys.stderr)
     threading.Thread(target=warm, name="warm", daemon=True).start()
+    # Re-engage whatever was engaged before the restart, once the cache is warm
+    # enough to answer. This is what makes an overnight run survive a reboot.
+    def resume():
+        time.sleep(3)
+        if TRACK_ENABLED:
+            tracker.load()
+    threading.Thread(target=resume, name="resume-track", daemon=True).start()
     app.run(host=BIND, port=PORT, debug=False, threaded=True)

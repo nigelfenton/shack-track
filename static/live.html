@@ -61,6 +61,17 @@ body{margin:0;background:var(--ground);color:var(--ink);font-family:"Source Sans
 .pill.next{color:var(--soon);border-color:var(--soon)}
 .pill.mode{color:var(--label);border-color:var(--edge)}
 .tos{font-family:"JetBrains Mono",ui-monospace,monospace;font-size:.82rem;color:var(--label);margin-left:auto}
+/* Track: a STANDING instruction, not a per-pass action -- it stays on across
+   LOS, a server restart and the radio going away, until pressed again. */
+.track{all:unset;cursor:pointer;font-family:"JetBrains Mono",ui-monospace,monospace;font-size:.66rem;
+  letter-spacing:.12em;text-transform:uppercase;padding:4px 12px;border-radius:999px;
+  border:1px solid var(--edge);color:var(--label)}
+.track:hover{color:var(--ink-2);border-color:var(--ink-2)}
+.track[data-on="1"]{color:var(--ground);background:var(--live);border-color:var(--live);font-weight:700}
+.track[data-on="1"]:hover{color:var(--ground)}
+.track[disabled]{cursor:not-allowed;opacity:.45}
+.tracknote{font-family:"JetBrains Mono",ui-monospace,monospace;font-size:.66rem;color:var(--label)}
+.tracknote.bad{color:var(--los)} .tracknote.good{color:var(--live)} .tracknote.warn{color:var(--soon)}
 .ladder{display:flex;align-items:flex-end;gap:3px;height:38px;margin-top:2px;width:100%}
 .ladder i{flex:1;background:var(--grid);border-radius:1px;min-height:2px}
 .ladder i.on{background:var(--live)}
@@ -149,6 +160,8 @@ footer a{color:inherit}
         <span class="satname" id="sat">…</span>
         <span class="pill" id="state">…</span>
         <span class="pill mode" id="mode"></span>
+        <button class="track" id="track" data-on="0" title="Track this bird: stays engaged across LOS and restarts until pressed again">Track</button>
+        <span class="tracknote" id="tracknote"></span>
         <span class="tos" id="tos"></span>
       </div>
       <div class="row"><span class="k">Radio</span><span class="v" id="radio-v">…</span><span class="d" id="radio-d"></span></div>
@@ -272,6 +285,28 @@ footer a{color:inherit}
       `<div class="${l.cls}"><time>${l.t}</time><span>${esc(l.text)}</span></div>`).join('');
   }
 
+  // The tracker runs on the server and may have been working unattended for
+  // hours before this page was opened, so its log is merged in rather than
+  // rebuilt from what this browser happened to see.
+  const serverSeen = new Set();
+  function mergeServerLog(data) {
+    const lines = (data.tracker && data.tracker.log) || [];
+    for (const l of lines) {
+      const key = l.t + l.text;
+      if (serverSeen.has(key)) continue;
+      serverSeen.add(key);
+      const hhmmss = l.t.slice(11, 19);
+      logLines.push({t: hhmmss, text: '[tracker] ' + l.text, cls: l.cls || ''});
+    }
+    if (lines.length) {
+      logLines.sort((a, b) => (a.t < b.t ? -1 : a.t > b.t ? 1 : 0));
+      if (logLines.length > 300) logLines.splice(0, logLines.length - 300);
+      $('logcount').textContent = `(${logLines.length})`;
+      $('logbody').innerHTML = logLines.map((l) =>
+        `<div class="${l.cls}"><time>${l.t}</time><span>${esc(l.text)}</span></div>`).join('');
+    }
+  }
+
   // Record the TRANSITIONS worth knowing about, not every poll.
   const seen = {};
   function watch(data) {
@@ -333,6 +368,43 @@ footer a{color:inherit}
       put('t-src', esc(p.source || 'satellites.json'));
       $('t-note').textContent = p.note || '';
     }
+  }
+
+  // ---- track button -------------------------------------------------------
+  // Engage is a toggle. Pressing it says "work this bird" and the server keeps
+  // that instruction across LOS, a restart, and the radio going away.
+  let trackBusy = false;
+  $('track').addEventListener('click', async () => {
+    if (trackBusy || !data || !data.pass) return;
+    trackBusy = true;
+    const on = $('track').dataset.on === '1';
+    const body = on ? {engage: false} : {engage: true, sat: data.pass.sat};
+    try {
+      const r = await fetch('/api/track', {
+        method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body)});
+      const out = await r.json();
+      if (!out.ok) { logit(`track refused: ${out.error}`, 'bad'); $('tracknote').textContent = out.error; $('tracknote').className = 'tracknote bad'; }
+      else logit(on ? `disengaged from ${data.pass.sat}` : `engaged on ${data.pass.sat} - tracking every pass until turned off`, on ? 'warn' : 'good');
+    } catch (e) { logit(`track request failed: ${e}`, 'bad'); }
+    trackBusy = false;
+    load();
+  });
+
+  function paintTrack(data) {
+    const t = data.tracker || {}, btn = $('track'), note = $('tracknote');
+    if (t.enabled === false) { btn.disabled = true; btn.textContent = 'Track'; note.textContent = 'disabled on this server'; note.className = 'tracknote'; return; }
+    const p = data.pass || {};
+    const onThis = t.engaged && t.sat === p.sat;
+    btn.dataset.on = onThis ? '1' : '0';
+    btn.disabled = !p.sat || (t.engaged && !onThis);
+    btn.textContent = onThis ? 'Tracking' : 'Track';
+    if (t.engaged && !onThis) { note.textContent = `engaged on ${t.sat}`; note.className = 'tracknote warn'; return; }
+    if (!onThis) { note.textContent = ''; return; }
+    const cls = t.state === 'tracking' ? 'good' : (t.state || '').startsWith('idle') ? 'bad' : 'warn';
+    note.textContent = t.state === 'tracking'
+      ? (t.offset_hz ? `offset ${t.offset_hz > 0 ? '+' : ''}${t.offset_hz} Hz` : 'on centre')
+      : `${t.state}${t.detail ? ' - ' + t.detail : ''}`;
+    note.className = 'tracknote ' + cls;
   }
 
   function setRow(id, v, d, vcls, dcls) {
@@ -423,6 +495,8 @@ footer a{color:inherit}
     $('src').textContent = `Skyfield · newest TLE epoch ${data.tle_newest_epoch || '?'} · ${data.qth ? data.qth.name : ''}`;
     fillPanes(data);
     watch(data);
+    paintTrack(data);
+    mergeServerLog(data);
   }
 
   async function load() {
