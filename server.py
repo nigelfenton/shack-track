@@ -66,10 +66,31 @@ def _now_iso() -> str:
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
 
 
+_refreshing: set[str] = set()
+
+
 def _cached(key: str, ttl: float, fn):
+    """Cache with stale-while-revalidate. An expired entry is returned as-is
+    and refreshed on a background thread, so a 1 Hz poller never waits on a
+    recompute (the 24 h pass list takes ~20 s on the hub). Only a cold cache
+    computes inline."""
     with _lock:
         hit = _cache.get(key)
-        if hit and time.monotonic() - hit[0] < ttl:
+        fresh = hit and time.monotonic() - hit[0] < ttl
+        if hit and not fresh and key not in _refreshing:
+            _refreshing.add(key)
+            def refresh():
+                try:
+                    value = fn()
+                    with _lock:
+                        _cache[key] = (time.monotonic(), value)
+                except Exception:  # noqa: BLE001
+                    app.logger.exception("background refresh of %s failed", key)
+                finally:
+                    with _lock:
+                        _refreshing.discard(key)
+            threading.Thread(target=refresh, name=f"refresh-{key}", daemon=True).start()
+        if hit:
             return hit[1]
     value = fn()
     with _lock:
@@ -225,4 +246,12 @@ def api_health():
 if __name__ == "__main__":
     print(f"shack-track: TLE={TLE} sats={SATS} keps={KEPS or '(off)'} on {BIND}:{PORT}",
           file=sys.stderr)
+    # Warm the 24 h list so the first live poll after a restart is not a 20 s wait.
+    def warm():
+        try:
+            _cached("passes:24.0", PASS_TTL_S, lambda: engine.compute(engine.load_config(SATS), TLE, 24.0))
+            print("shack-track: pass cache warm", file=sys.stderr)
+        except Exception as e:  # noqa: BLE001
+            print(f"shack-track: warm-up failed: {e}", file=sys.stderr)
+    threading.Thread(target=warm, name="warm", daemon=True).start()
     app.run(host=BIND, port=PORT, debug=False, threaded=True)
