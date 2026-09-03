@@ -202,7 +202,7 @@ def doppler(f_hz: float | None, range_rate_kms: float, uplink: bool) -> dict | N
 
 
 def live_state(cfg: dict, tle_path: Path, now: datetime | None = None,
-               precomputed: dict | None = None) -> dict:
+               precomputed: dict | None = None, sat: str | None = None) -> dict:
     """What the operating view needs, once a second.
 
     Picks the pass in progress (else the next one within 24 h), and reports the
@@ -218,13 +218,18 @@ def live_state(cfg: dict, tle_path: Path, now: datetime | None = None,
     # endpoint timed out under its own polling on 2026-09-02.
     result = precomputed or compute(cfg, tle_path, 24.0, now=now)
     now_iso = now.replace(microsecond=0).isoformat().replace("+00:00", "Z")
-    chosen = next((p for p in result["passes"] if p["aos"] <= now_iso < p["los"]), None)
+    # `sat` pins the view to one bird (the operator's choice, e.g. what Gpredict
+    # is tracking) even while another bird's pass overlaps. Without it: the
+    # earliest live pass, else the next one. Passes overlap more than you'd
+    # think -- AO-27 and RS-44 did on 2026-09-02.
+    cands = [p for p in result["passes"] if not sat or p["sat"].lower() == sat.lower()]
+    chosen = next((p for p in cands if p["aos"] <= now_iso < p["los"]), None)
     state = "live" if chosen else "next"
     if chosen is None:
-        chosen = next((p for p in result["passes"] if p["aos"] > now_iso), None)
+        chosen = next((p for p in cands if p["aos"] > now_iso), None)
         state = "next" if chosen else "none"
 
-    out = {"now": now_iso, "state": state, "pass": chosen,
+    out = {"now": now_iso, "state": state, "pass": chosen, "selected_by": "sat" if sat else "schedule",
            "min_elevation_deg": result["min_elevation_deg"],
            "tle_newest_epoch": result["tle_newest_epoch"], "qth": result["qth"]}
     if chosen is None:

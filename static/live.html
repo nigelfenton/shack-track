@@ -159,7 +159,7 @@ footer a{color:inherit}
     } else {
       $('sat').textContent = p.display;
       $('state').textContent = live ? 'Live' : 'Next'; $('state').className = 'pill ' + (live ? 'live' : 'next');
-      $('mode').textContent = p.mode;
+      $('mode').textContent = p.mode + (data.selected_by === 'sat' ? ' · pinned' : '');
       // Countdown ticks locally between fetches, from the server's own seconds.
       const drift = (now - fetchedAt) / 1e3;
       // AOS/LOS are crossings of the configured floor (5°), not the horizon --
@@ -229,7 +229,9 @@ footer a{color:inherit}
 
   async function load() {
     try {
-      const r = await fetch('/api/live', {cache: 'no-store'});
+      // ?sat=RS-44 on this page pins the view to that bird (passes overlap).
+      const sat = new URLSearchParams(location.search).get('sat');
+      const r = await fetch('/api/live' + (sat ? `?sat=${encodeURIComponent(sat)}` : ''), {cache: 'no-store'});
       const text = await r.text();
       try { data = JSON.parse(text); } catch (e) { data = {error: `HTTP ${r.status} (not JSON)`}; }
       if (!r.ok && !data.error) data = {error: `HTTP ${r.status}`};
