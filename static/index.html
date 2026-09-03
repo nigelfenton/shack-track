@@ -93,10 +93,29 @@ details{font-size:.85rem;color:var(--label)}
 details summary{cursor:pointer}
 .note{font-size:.9rem;color:var(--label);max-width:70ch}
 .note b{color:var(--ink-2);font-weight:600}
+
+/* ---- shared nav: the three views, same place on every page ---- */
+.nav{display:flex;gap:0;align-items:center;flex-wrap:wrap;margin-bottom:14px}
+.nav a{font-family:"JetBrains Mono",ui-monospace,monospace;font-size:.7rem;letter-spacing:.12em;
+  text-transform:uppercase;color:var(--label);text-decoration:none;padding:7px 14px;
+  border:1px solid var(--edge);border-right-width:0;background:var(--panel)}
+.nav a:first-child{border-radius:6px 0 0 6px}
+.nav a:last-of-type{border-right-width:1px;border-radius:0 6px 6px 0}
+.nav a:hover{color:var(--ink-2)}
+.nav a[aria-current="page"]{color:var(--ink);background:var(--panel-2);border-color:var(--track)}
+.nav .sp{flex:1}
+.nav .api{border:none;background:none;padding:7px 0 7px 14px;font-size:.64rem}
 </style>
 </head>
 <body>
 <div class="wrap">
+  <nav class="nav">
+    <a href="/" aria-current="page">Passes</a>
+    <a href="/live">Operating</a>
+    <a href="/strip">Strip</a>
+    <span class="sp"></span>
+    <a class="api" href="/api/passes?hours=12">api</a>
+  </nav>
   <header>
     <div class="eyebrow">Shack-Track · before the pass</div>
     <h1>Tonight's passes</h1>
@@ -116,7 +135,7 @@ details summary{cursor:pointer}
   <footer>
     <span id="src"></span>
     <span id="gen"></span>
-    <span><a href="/strip" style="color:inherit">status strip</a> · <a href="/api/next" style="color:inherit">api</a></span>
+
   </footer>
 </div>
 

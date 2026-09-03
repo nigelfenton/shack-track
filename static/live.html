@@ -100,10 +100,29 @@ body{margin:0;background:var(--ground);color:var(--ink);font-family:"Source Sans
 .log .empty{color:var(--label);border:none}
 footer{font-size:.8rem;color:var(--label);display:flex;flex-wrap:wrap;gap:6px 18px}
 footer a{color:inherit}
+
+/* ---- shared nav: the three views, same place on every page ---- */
+.nav{display:flex;gap:0;align-items:center;flex-wrap:wrap;margin-bottom:14px}
+.nav a{font-family:"JetBrains Mono",ui-monospace,monospace;font-size:.7rem;letter-spacing:.12em;
+  text-transform:uppercase;color:var(--label);text-decoration:none;padding:7px 14px;
+  border:1px solid var(--edge);border-right-width:0;background:var(--panel)}
+.nav a:first-child{border-radius:6px 0 0 6px}
+.nav a:last-of-type{border-right-width:1px;border-radius:0 6px 6px 0}
+.nav a:hover{color:var(--ink-2)}
+.nav a[aria-current="page"]{color:var(--ink);background:var(--panel-2);border-color:var(--track)}
+.nav .sp{flex:1}
+.nav .api{border:none;background:none;padding:7px 0 7px 14px;font-size:.64rem}
 </style>
 </head>
 <body>
 <div class="wrap">
+  <nav class="nav">
+    <a href="/">Passes</a>
+    <a href="/live" aria-current="page">Operating</a>
+    <a href="/strip">Strip</a>
+    <span class="sp"></span>
+    <a class="api" href="/api/live">api</a>
+  </nav>
   <div class="eyebrow">Shack-Track · during the pass</div>
 
   <div class="mock opview" id="view">
@@ -203,7 +222,7 @@ footer a{color:inherit}
 
   <footer>
     <span id="src"></span>
-    <span><a href="/">pass list</a> · <a href="/strip">status strip</a> · <a href="/api/live">api</a></span>
+
   </footer>
 </div>
 

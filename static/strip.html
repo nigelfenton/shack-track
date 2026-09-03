@@ -51,6 +51,7 @@ body{margin:0;background:var(--ground);color:var(--ink);font-family:"JetBrains M
 .v.ok{color:var(--live)} .v.warn{color:var(--soon)} .v.bad{color:var(--los)} .v.dim{color:var(--label)}
 .foot{position:fixed;bottom:1vmin;right:2vmin;font-size:.7rem;color:var(--label)}
 .foot a{color:inherit}
+.foot a:hover{color:var(--ink)}
 </style>
 </head>
 <body>
@@ -63,7 +64,7 @@ body{margin:0;background:var(--ground);color:var(--ink);font-family:"JetBrains M
   <div class="cell" id="c-rotor"><span class="k">Rotor</span><span class="v dim">no rotor</span><span class="s">not wired up yet</span></div>
   <div class="cell" id="c-keps"><span class="k">Keps</span><span class="v">…</span><span class="s"></span></div>
 </div>
-<div class="foot"><a href="/">pass list</a> · <span id="clock"></span></div>
+<div class="foot"><a href="/">passes</a> · <a href="/live">operating</a> · <span id="clock"></span></div>
 
 <script>
 (() => {
