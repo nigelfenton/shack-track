@@ -263,6 +263,39 @@ def maidenhead(lat: float, lon: float) -> str:
     return a + b + c + d + e + f
 
 
+def grid_to_latlon(locator: str) -> tuple[float, float]:
+    """Centre of a 4- or 6-character Maidenhead square.
+
+    The CENTRE, not the corner: a 6-character square is 5 minutes of longitude
+    by 2.5 of latitude (about 4.6 x 4.6 km here), so taking the corner would
+    put a station up to 3 km from where they said they were -- the same class
+    of error that had this project's own QTH one subsquare east for months.
+
+    Raises ValueError with a sentence the page can show the operator, rather
+    than returning a silent default: a typo'd grid that quietly computes
+    somewhere else is exactly the Copenhagen failure Gpredict shipped.
+    """
+    loc = (locator or "").strip().upper()
+    if len(loc) not in (4, 6):
+        raise ValueError("A grid square is 4 or 6 characters, like II22 or II22TB.")
+    if not ("A" <= loc[0] <= "R" and "A" <= loc[1] <= "R"):
+        raise ValueError("The first two letters of a grid run A to R.")
+    if not (loc[2].isdigit() and loc[3].isdigit()):
+        raise ValueError("Characters three and four of a grid are digits, like II22.")
+    lon = (ord(loc[0]) - 65) * 20.0 - 180.0 + int(loc[2]) * 2.0
+    lat = (ord(loc[1]) - 65) * 10.0 - 90.0 + int(loc[3])
+    if len(loc) == 6:
+        if not ("A" <= loc[4] <= "X" and "A" <= loc[5] <= "X"):
+            raise ValueError("The last two letters of a 6-character grid run A to X.")
+        # 24 subsquares per field in each axis; + half a subsquare for the centre.
+        lon += (ord(loc[4]) - 65) * (2.0 / 24.0) + (1.0 / 24.0)
+        lat += (ord(loc[5]) - 65) * (1.0 / 24.0) + (0.5 / 24.0)
+    else:
+        lon += 1.0   # centre of the 2-degree field
+        lat += 0.5   # centre of the 1-degree field
+    return lat, lon
+
+
 def doppler(f_hz: float | None, range_rate_kms: float, uplink: bool) -> dict | None:
     """Frequency the radio should be on for f_hz to arrive at/leave the bird.
 

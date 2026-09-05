@@ -202,6 +202,77 @@ def strip():
     return send_from_directory(app.static_folder, "strip.html")
 
 
+# How many distinct grids we will hold pass lists for at once. Each entry is a
+# 24 h list (~280 kB) and costs ~2.6 s to build, so this is the knob that stops
+# a public URL turning into an unbounded compute-and-memory sink: ?grid= is the
+# one parameter a stranger controls, and without a cap they could mint a new
+# cache key on every request.
+GRID_CACHE_MAX = 24
+_grid_seen: list[str] = []
+
+
+def _grid_cfg(grid: str) -> dict:
+    """The station config with someone else's QTH substituted.
+
+    A shallow copy with a fresh qth dict: the satellite table, minimum
+    elevation and everything else stay shared, but nothing this request does
+    can reach back and change the operator's own configured position.
+    """
+    cfg = dict(engine.load_config(SATS))
+    lat, lon = engine.grid_to_latlon(grid)      # raises ValueError on a bad grid
+    cfg["qth"] = {"name": grid.upper(), "lat": round(lat, 4), "lon": round(lon, 4),
+                  "alt_m": 0}
+    return cfg
+
+
+def _grid_key(grid: str) -> str:
+    """Cache key for a visitor's grid, with a bound on how many we keep."""
+    key = "passes:grid:" + grid.upper()
+    with _lock:
+        if key in _grid_seen:
+            _grid_seen.remove(key)
+        _grid_seen.append(key)
+        while len(_grid_seen) > GRID_CACHE_MAX:
+            _cache.pop(_grid_seen.pop(0), None)
+    return key
+
+
+@app.get("/api/passes/grid")
+def api_passes_grid():
+    """Passes for ANY Maidenhead grid -- the public predictor.
+
+    Deliberately needs no login and reads nothing about this station: it is
+    ephemeris for a location the caller supplied, computable by anyone holding
+    the same TLEs. That is why it can be public when /api/live cannot.
+
+    The grid is validated before it reaches the engine and a bad one comes back
+    as a sentence to show the operator, not a default position -- a typo that
+    silently computes somewhere else is the Copenhagen failure.
+    """
+    grid = (request.args.get("grid") or "").strip()
+    if not grid:
+        return jsonify({"error": "Give a grid square, like ?grid=II22TB"}), 400
+    try:
+        hours = max(1.0, min(48.0, float(request.args.get("hours", 24))))
+    except ValueError:
+        return jsonify({"error": "hours must be a number"}), 400
+    try:
+        cfg = _grid_cfg(grid)
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
+    try:
+        key = _grid_key(grid) + ":%s" % hours
+        result = _cached(key, PASS_TTL_S,
+                         lambda: engine.compute(cfg, TLE, hours),
+                         max_stale=PASS_MAX_STALE_S)
+    except (OSError, ValueError) as e:
+        return jsonify({"error": "pass engine cannot read its inputs: %s" % e}), 503
+    except Exception as e:  # noqa: BLE001
+        app.logger.exception("pass engine failed for grid %s", grid)
+        return jsonify({"error": "pass engine failed: %s" % type(e).__name__}), 500
+    return jsonify(result)
+
+
 def _export_passes():
     """The 24 h list every export shares. Always 24 h regardless of the page's
     view toggle -- a file called 'passes' that silently held one hour because a

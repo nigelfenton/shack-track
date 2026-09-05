@@ -48,6 +48,21 @@ header{display:flex;flex-direction:column;gap:8px;border-bottom:1px solid var(--
 /* Downloads. Deliberately plain anchors, not buttons: the browser's own
    save behaviour and "copy link" both work, and a middle-click does the
    right thing. Always the 24 h list regardless of the view toggle above. */
+/* Grid entry. Anyone can point this at their own square; nothing here reads
+   the radio, so it needs no login and gives away nothing about this station. */
+.gr{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;align-items:center}
+.gr .lbl{font-family:"JetBrains Mono",ui-monospace,monospace;font-size:.64rem;
+  letter-spacing:.12em;text-transform:uppercase;color:var(--label)}
+.gr input{font-family:"JetBrains Mono",ui-monospace,monospace;font-size:.72rem;
+  width:7.5em;text-transform:uppercase;background:var(--panel-2);color:var(--ink);
+  border:1px solid var(--edge);border-radius:6px;padding:3px 8px}
+.gr input:focus{outline:none;border-color:var(--accent)}
+.gr button{font-family:"JetBrains Mono",ui-monospace,monospace;font-size:.7rem;
+  background:var(--panel-2);color:var(--ink-2);border:1px solid var(--edge);
+  border-radius:6px;padding:3px 10px;cursor:pointer}
+.gr button:hover{color:var(--ink);border-color:var(--track)}
+.gr .err{font-size:.7rem;color:var(--los)}
+.gr .home{font-size:.7rem;color:var(--label);text-decoration:none;border-bottom:1px dotted var(--edge)}
 .dl{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px;align-items:center}
 .dl .lbl{font-family:"JetBrains Mono",ui-monospace,monospace;font-size:.64rem;
   letter-spacing:.12em;text-transform:uppercase;color:var(--label)}
@@ -134,6 +149,14 @@ details summary{cursor:pointer}
       <span class="tag" id="window"><button id="hours">next 12 h</button></span>
       <span class="tag" id="keps">keps …</span>
       <span class="tag" id="clock">…</span>
+    </div>
+    <div class="gr" id="gridbox">
+      <span class="lbl">grid</span>
+      <input id="gridin" maxlength="6" placeholder="II22TB" spellcheck="false"
+             aria-label="Maidenhead grid square to predict passes for">
+      <button id="gridgo" type="button">Show passes</button>
+      <a class="home" id="gridhome" href="/" hidden>back to the shack</a>
+      <span class="err" id="griderr"></span>
     </div>
     <div class="dl" id="dl">
       <span class="lbl">download</span>
@@ -235,9 +258,48 @@ details summary{cursor:pointer}
 
   function esc(s) { return String(s).replace(/[&<>"]/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
 
+  // A grid in the URL switches the data source to the public predictor. It is
+  // read from the URL rather than kept only in a variable so the result is a
+  // LINK someone can send to a club member, and so reload keeps the location.
+  const params = new URLSearchParams(location.search);
+  let grid = (params.get('grid') || '').trim().toUpperCase();
+
+  function passesUrl() {
+    return grid ? `/api/passes/grid?grid=${encodeURIComponent(grid)}&hours=${hours}`
+                : `/api/passes?hours=${hours}`;
+  }
+
+  function applyGrid(g) {
+    const next = new URL(location.href);
+    if (g) next.searchParams.set('grid', g); else next.searchParams.delete('grid');
+    // Reload rather than re-render in place: the download links, the keps chip
+    // and the page title all key off the same data, and one navigation keeps
+    // them consistent instead of half-updating them.
+    location.assign(next.toString());
+  }
+
+  (function initGrid() {
+    const box = $('gridin'), go = $('gridgo'), home = $('gridhome'), err = $('griderr');
+    if (!box) return;
+    box.value = grid;
+    if (grid) { home.hidden = false; document.title = `Shack-Track · passes for ${grid}`; }
+    const submit = () => {
+      const v = box.value.trim().toUpperCase();
+      if (v && !/^[A-R]{2}[0-9]{2}([A-X]{2})?$/.test(v)) {
+        err.textContent = 'Grids look like II22 or II22TB.';
+        return;
+      }
+      err.textContent = '';
+      applyGrid(v);
+    };
+    go.addEventListener('click', submit);
+    box.addEventListener('keydown', (e) => { if (e.key === 'Enter') submit(); });
+    home.addEventListener('click', (e) => { e.preventDefault(); applyGrid(''); });
+  })();
+
   async function loadPasses() {
     try {
-      const r = await fetch(`/api/passes?hours=${hours}`, {cache: 'no-store'});
+      const r = await fetch(passesUrl(), {cache: 'no-store'});
       const text = await r.text();
       try { data = JSON.parse(text); } catch (e) { data = {error: `HTTP ${r.status} ${r.statusText} (not JSON)`}; }
       if (!r.ok && !data.error) data = {error: `HTTP ${r.status}`};
