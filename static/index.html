@@ -45,6 +45,16 @@ h1{font-family:Chivo,ui-sans-serif,system-ui,sans-serif;font-weight:900;font-siz
   text-transform:uppercase;color:var(--label)}
 header{display:flex;flex-direction:column;gap:8px;border-bottom:1px solid var(--edge);padding-bottom:18px}
 .meta{display:flex;flex-wrap:wrap;gap:8px;margin-top:6px;align-items:center}
+/* Downloads. Deliberately plain anchors, not buttons: the browser's own
+   save behaviour and "copy link" both work, and a middle-click does the
+   right thing. Always the 24 h list regardless of the view toggle above. */
+.dl{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px;align-items:center}
+.dl .lbl{font-family:"JetBrains Mono",ui-monospace,monospace;font-size:.64rem;
+  letter-spacing:.12em;text-transform:uppercase;color:var(--label)}
+.dl a{font-family:"JetBrains Mono",ui-monospace,monospace;font-size:.7rem;
+  border:1px solid var(--edge);border-radius:6px;padding:3px 9px;
+  color:var(--ink-2);text-decoration:none;background:var(--panel-2)}
+.dl a:hover{color:var(--ink);border-color:var(--track)}
 .tag{font-family:"JetBrains Mono",ui-monospace,monospace;font-size:.7rem;border:1px solid var(--edge);
   border-radius:999px;padding:4px 10px;color:var(--label)}
 .tag.ok{color:var(--live);border-color:var(--live)}
@@ -124,6 +134,17 @@ details summary{cursor:pointer}
       <span class="tag" id="window"><button id="hours">next 12 h</button></span>
       <span class="tag" id="keps">keps …</span>
       <span class="tag" id="clock">…</span>
+    </div>
+    <div class="dl" id="dl">
+      <span class="lbl">download</span>
+      <a href="/api/export/passes.csv" download
+         title="The next 24 h of passes as a spreadsheet: AOS/LOS in UTC and local, duration, peak elevation and azimuth, up/downlink.">CSV</a>
+      <a href="/api/export/passes.ics" download
+         title="The next 24 h as calendar events you can import into Outlook, Google Calendar or a phone.">Calendar</a>
+      <a href="/api/export/passes.json" download
+         title="The raw 24 h pass records exactly as the API returns them.">JSON</a>
+      <a href="/api/export/satellites.json" download
+         title="The satellite table itself: frequencies, modes, transponder sense and where each entry came from.">Satellites</a>
     </div>
   </header>
 

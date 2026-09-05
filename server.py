@@ -26,6 +26,8 @@ runs at most once every ten minutes because it fetches from the internet.
 
 from __future__ import annotations
 
+import csv
+from io import StringIO
 import json
 import os
 import socket
@@ -198,6 +200,135 @@ def _run_keps() -> dict:
 @app.get("/strip")
 def strip():
     return send_from_directory(app.static_folder, "strip.html")
+
+
+def _export_passes():
+    """The 24 h list every export shares. Always 24 h regardless of the page's
+    view toggle -- a file called 'passes' that silently held one hour because a
+    button was set that way is a worse surprise than one that holds a day."""
+    cfg = engine.load_config(SATS)
+    return _cached("passes:24.0", PASS_TTL_S,
+                   lambda: engine.compute(cfg, TLE, 24.0),
+                   max_stale=PASS_MAX_STALE_S)
+
+
+def _attach(body: str, mime: str, name: str):
+    """A downloadable response. Content-Disposition is what makes the browser
+    save it rather than render it; without it a CSV shows as a wall of text."""
+    return app.response_class(
+        body, mimetype=mime,
+        headers={"Content-Disposition": 'attachment; filename="%s"' % name,
+                 "Cache-Control": "no-store"})
+
+
+def _stamp() -> str:
+    return datetime.now(timezone.utc).strftime("%Y%m%d")
+
+
+@app.get("/api/export/passes.csv")
+def export_csv():
+    """The pass list as a spreadsheet. UTC and local side by side: the times you
+    work a pass by are local, but the times you compare against anyone else's
+    log are UTC, and a file with only one of them always turns out to be the
+    wrong one."""
+    try:
+        result = _export_passes()
+    except Exception as e:  # noqa: BLE001
+        return jsonify({"error": "pass engine failed: %s" % e}), 500
+    buf = StringIO()
+    w = csv.writer(buf)
+    w.writerow(["satellite", "mode", "aos_utc", "aos_local", "tca_utc", "los_utc",
+                "duration_min", "peak_el_deg", "aos_az_deg", "peak_az_deg",
+                "los_az_deg", "uplink_khz", "downlink_khz", "transponder", "note"])
+    for p_ in result["passes"]:
+        aos = p_.get("aos", "")
+        try:
+            local = (datetime.fromisoformat(aos.replace("Z", "+00:00"))
+                     .astimezone().strftime("%Y-%m-%d %H:%M:%S %Z"))
+        except (ValueError, AttributeError):
+            local = ""
+        w.writerow([
+            p_.get("display", ""), p_.get("mode", ""), aos, local,
+            p_.get("tca", ""), p_.get("los", ""),
+            round((p_.get("duration_s") or 0) / 60.0, 1),
+            p_.get("peak_el", ""), p_.get("aos_az", ""), p_.get("peak_az", ""),
+            p_.get("los_az", ""), p_.get("uplink_khz", ""), p_.get("downlink_khz", ""),
+            p_.get("xpdr", ""), p_.get("note", ""),
+        ])
+    return _attach(buf.getvalue(), "text/csv",
+                   "shack-track-passes-%s.csv" % _stamp())
+
+
+@app.get("/api/export/passes.ics")
+def export_ics():
+    """Passes as calendar events.
+
+    RFC 5545 wants CRLF line endings and escaped commas/semicolons in TEXT
+    values -- a raw note containing a comma silently truncates the field in
+    some clients. UID must be stable per pass so re-importing updates an event
+    rather than duplicating it.
+    """
+    try:
+        result = _export_passes()
+    except Exception as e:  # noqa: BLE001
+        return jsonify({"error": "pass engine failed: %s" % e}), 500
+
+    def esc(t):
+        return (str(t).replace("\\", "\\\\").replace(";", "\\;")
+                .replace(",", "\\,").replace("\n", "\\n"))
+
+    def stamp(iso):
+        return str(iso).replace("-", "").replace(":", "").replace(".000", "")
+
+    out = ["BEGIN:VCALENDAR", "VERSION:2.0",
+           "PRODID:-//G0JKN//Shack-Track//EN", "CALSCALE:GREGORIAN",
+           "METHOD:PUBLISH", "X-WR-CALNAME:Satellite passes (%s)"
+           % result.get("qth", {}).get("name", "")]
+    now = stamp(_now_iso())
+    for p_ in result["passes"]:
+        summary = "%s  %s deg" % (p_.get("display", "pass"), p_.get("peak_el", "?"))
+        desc = ("Peak elevation %s deg at azimuth %s. AOS az %s, LOS az %s. "
+                "Downlink %s kHz, uplink %s kHz. %s"
+                % (p_.get("peak_el", "?"), p_.get("peak_az", "?"),
+                   p_.get("aos_az", "?"), p_.get("los_az", "?"),
+                   p_.get("downlink_khz", "?"), p_.get("uplink_khz", "?"),
+                   p_.get("note", "")))
+        out += ["BEGIN:VEVENT",
+                "UID:%s-%s@track.g0jkn.com" % (p_.get("display", "pass"),
+                                               stamp(p_.get("aos", ""))),
+                "DTSTAMP:" + now,
+                "DTSTART:" + stamp(p_.get("aos", "")),
+                "DTEND:" + stamp(p_.get("los", "")),
+                "SUMMARY:" + esc(summary),
+                "DESCRIPTION:" + esc(desc),
+                "END:VEVENT"]
+    out.append("END:VCALENDAR")
+    return _attach("\r\n".join(out) + "\r\n", "text/calendar",
+                   "shack-track-passes-%s.ics" % _stamp())
+
+
+@app.get("/api/export/passes.json")
+def export_json():
+    """Exactly what /api/passes returns for 24 h, as a saved file."""
+    try:
+        result = _export_passes()
+    except Exception as e:  # noqa: BLE001
+        return jsonify({"error": "pass engine failed: %s" % e}), 500
+    return _attach(json.dumps(result, indent=2), "application/json; charset=utf-8",
+                   "shack-track-passes-%s.json" % _stamp())
+
+
+@app.get("/api/export/satellites.json")
+def export_sats():
+    """The bird table itself -- frequencies, modes, transponder sense and the
+    provenance note on each entry. Served from disk rather than the parsed
+    object so the _comment block and key order survive for a human reader."""
+    try:
+        return _attach(Path(SATS).read_text(encoding="utf-8"),
+                       "application/json; charset=utf-8",
+                       "shack-track-satellites.json")
+    except OSError as e:
+        return jsonify({"error": "cannot read satellite table: %s" % e}), 500
 
 
 @app.get("/api/next")
