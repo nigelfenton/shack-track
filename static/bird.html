@@ -1,0 +1,297 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Shack-Track · Bird</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Chivo:wght@700;900&family=Source+Sans+3:wght@400;600&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+/* Palette lifted from design/interface-concepts.html, itself lifted from
+   AetherSDR's dark seed (src/core/ThemeSeedGenerated.cpp). */
+:root{
+  --ground:#EEF2F7; --panel:#FFFFFF; --panel-2:#E4EAF2; --edge:#C9D4E2;
+  --ink:#0F1520; --ink-2:#33404F; --label:#5C6B80;
+  --accent:#0089a8; --live:#1E9E56; --soon:#A96C00; --los:#C43333; --track:#0089a8;
+  --grid:#D6DEE9;
+  --shadow:0 1px 2px rgba(15,21,32,.06),0 8px 24px rgba(15,21,32,.05);
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --ground:#0f0f1a; --panel:#151b28; --panel-2:#1a2330; --edge:#304050;
+    --ink:#c8d8e8; --ink-2:#a8bcd0; --label:#8ea8c0;
+    --accent:#00b4d8; --live:#4dd87a; --soon:#ffb84d; --los:#ff4d4d; --track:#00b4d8;
+    --grid:#1a2330;
+    --shadow:0 1px 2px rgba(0,0,0,.5),0 10px 30px rgba(0,0,0,.4);
+  }
+}
+:root[data-theme="dark"]{
+  --ground:#0f0f1a; --panel:#151b28; --panel-2:#1a2330; --edge:#304050;
+  --ink:#c8d8e8; --ink-2:#a8bcd0; --label:#8ea8c0;
+  --accent:#00b4d8; --live:#4dd87a; --soon:#ffb84d; --los:#ff4d4d; --track:#00b4d8;
+  --grid:#1a2330;
+  --shadow:0 1px 2px rgba(0,0,0,.5),0 10px 30px rgba(0,0,0,.4);
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--ground);color:var(--ink);
+  font-family:"Source Sans 3",ui-sans-serif,system-ui,sans-serif;font-size:16px;line-height:1.5;
+  -webkit-font-smoothing:antialiased}
+.wrap{max-width:1080px;margin:0 auto;padding:22px 20px 60px;display:flex;flex-direction:column;gap:16px}
+.nav{display:flex;align-items:center}
+.nav a{font-family:"JetBrains Mono",ui-monospace,monospace;font-size:.7rem;letter-spacing:.12em;
+  text-transform:uppercase;color:var(--label);text-decoration:none;padding:7px 14px;
+  border:1px solid var(--edge);border-right-width:0;background:var(--panel)}
+.nav a:first-child{border-radius:6px 0 0 6px}
+.nav a:last-of-type{border-right-width:1px;border-radius:0 6px 6px 0}
+.nav a:hover{color:var(--ink-2)}
+.nav a[aria-current="page"]{color:var(--ink);background:var(--panel-2);border-color:var(--track)}
+.eyebrow{font-family:"JetBrains Mono",ui-monospace,monospace;font-size:.66rem;letter-spacing:.18em;
+  text-transform:uppercase;color:var(--label)}
+
+/* THE STEPPER IS THE POINT OF THIS PAGE. Big targets, always in the same
+   place, readable from across the shack -- this is a second screen you glance
+   at with a microphone in hand, not a page you lean into. */
+.step{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.step button{all:unset;cursor:pointer;font-family:"JetBrains Mono",ui-monospace,monospace;
+  font-size:1.1rem;line-height:1;color:var(--ink-2);background:var(--panel);
+  border:1px solid var(--edge);border-radius:8px;padding:12px 18px;min-width:56px;text-align:center}
+.step button:hover:not([disabled]){color:var(--ink);border-color:var(--track)}
+.step button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.step button[disabled]{opacity:.35;cursor:not-allowed}
+.step .pos{font-family:"JetBrains Mono",ui-monospace,monospace;font-size:.72rem;color:var(--label);
+  min-width:9em;text-align:center}
+.step .now{margin-left:auto;font-family:"JetBrains Mono",ui-monospace,monospace;font-size:.72rem;
+  color:var(--label)}
+
+.card{background:var(--panel);border:1px solid var(--edge);border-radius:14px;
+  box-shadow:var(--shadow);padding:20px;display:grid;gap:20px;
+  grid-template-columns:minmax(240px,320px) 1fr}
+@media (max-width:760px){.card{grid-template-columns:1fr}}
+.dial{width:100%;max-width:320px;height:auto;display:block;margin:0 auto}
+.dialcap{font-family:"JetBrains Mono",ui-monospace,monospace;font-size:.68rem;color:var(--label);
+  text-align:center;margin-top:6px}
+
+.hdr{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+.hdr h1{font-family:Chivo,ui-sans-serif,sans-serif;font-weight:900;font-size:2rem;margin:0;
+  letter-spacing:-.01em}
+.badge{font-family:"JetBrains Mono",ui-monospace,monospace;font-size:.62rem;letter-spacing:.1em;
+  text-transform:uppercase;padding:2px 8px;border-radius:999px;border:1px solid var(--edge);
+  color:var(--label)}
+.badge.live{color:var(--ground);background:var(--live);border-color:var(--live);font-weight:700}
+.badge.soon{color:var(--soon);border-color:var(--soon)}
+.sub{font-family:"JetBrains Mono",ui-monospace,monospace;font-size:.72rem;color:var(--label)}
+
+.rows{display:grid;grid-template-columns:auto 1fr;gap:6px 16px;margin-top:14px;align-items:baseline}
+.rows dt{font-family:"JetBrains Mono",ui-monospace,monospace;font-size:.66rem;letter-spacing:.1em;
+  text-transform:uppercase;color:var(--label)}
+.rows dd{margin:0;font-family:"JetBrains Mono",ui-monospace,monospace;font-size:.86rem;color:var(--ink)}
+.rows dd small{color:var(--label);font-size:.72rem}
+.big{font-size:1.5rem !important;font-weight:700}
+.note{color:var(--ink-2);font-size:.9rem;margin:14px 0 0;line-height:1.45}
+.empty{color:var(--label);font-family:"JetBrains Mono",ui-monospace,monospace;font-size:.8rem;
+  text-align:center;padding:40px 0}
+.err{color:var(--los);font-family:"JetBrains Mono",ui-monospace,monospace;font-size:.8rem}
+.foot{font-family:"JetBrains Mono",ui-monospace,monospace;font-size:.66rem;color:var(--label);
+  display:flex;gap:14px;flex-wrap:wrap}
+.foot a{color:var(--label)}
+kbd{font-family:"JetBrains Mono",ui-monospace,monospace;font-size:.64rem;border:1px solid var(--edge);
+  border-bottom-width:2px;border-radius:4px;padding:1px 5px;color:var(--label)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <nav class="nav">
+    <a href="/">Passes</a>
+    <a href="/bird" aria-current="page">Bird</a>
+    <a href="/live">Operating</a>
+    <a href="/strip">Strip</a>
+  </nav>
+
+  <div>
+    <div class="eyebrow" id="eyebrow">Shack-Track · one pass at a time</div>
+    <div class="step">
+      <button id="prev" type="button" aria-label="Previous pass" title="Previous pass (left arrow)">&#9664;</button>
+      <span class="pos" id="pos">…</span>
+      <button id="next" type="button" aria-label="Next pass" title="Next pass (right arrow)">&#9654;</button>
+      <span class="now" id="now"></span>
+    </div>
+  </div>
+
+  <div class="card" id="card">
+    <div>
+      <svg class="dial" viewBox="0 0 200 200" id="dial" role="img"
+           aria-label="Polar sky plot: centre overhead, rim horizon, north up">
+        <circle cx="100" cy="100" r="92" fill="none" stroke="var(--grid)"/>
+        <circle cx="100" cy="100" r="61.3" fill="none" stroke="var(--grid)" stroke-dasharray="2 4"/>
+        <circle cx="100" cy="100" r="30.7" fill="none" stroke="var(--grid)" stroke-dasharray="2 4"/>
+        <line x1="100" y1="8" x2="100" y2="192" stroke="var(--grid)"/>
+        <line x1="8" y1="100" x2="192" y2="100" stroke="var(--grid)"/>
+        <path id="arc" d="" fill="none" stroke="var(--track)" stroke-width="2.5"
+              stroke-linecap="round" stroke-linejoin="round"/>
+        <circle id="aosdot" cx="-10" cy="-10" r="4" fill="var(--soon)"/>
+        <circle id="losdot" cx="-10" cy="-10" r="4" fill="var(--los)"/>
+        <text x="100" y="6" text-anchor="middle" font-size="9" fill="var(--label)"
+              font-family="JetBrains Mono, monospace">N</text>
+        <text x="196" y="103" text-anchor="end" font-size="9" fill="var(--label)"
+              font-family="JetBrains Mono, monospace">E</text>
+      </svg>
+      <div class="dialcap" id="dialcap"></div>
+    </div>
+
+    <div id="detail">
+      <div class="empty" id="empty">Loading…</div>
+    </div>
+  </div>
+
+  <div class="foot">
+    <span id="qth">QTH …</span>
+    <span><kbd>&larr;</kbd> <kbd>&rarr;</kbd> step passes</span>
+    <span id="srcnote"></span>
+  </div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+  const $ = (id) => document.getElementById(id);
+  const esc = (t) => String(t).replace(/[&<>"]/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  const pad = (n) => String(n).padStart(2, '0');
+
+  // Same projection as /live, deliberately: centre = zenith, rim = horizon,
+  // north up. Two pages drawing the same sky differently would be worse than
+  // either drawing it badly.
+  const R = 92, CX = 100, CY = 100;
+  const proj = (az, el) => {
+    const r = R * (1 - Math.max(0, el) / 90), a = az * Math.PI / 180;
+    return [CX + r * Math.sin(a), CY - r * Math.cos(a)];
+  };
+  const pathOf = (pts) => pts.length
+    ? 'M ' + pts.map(([x, y]) => `${x.toFixed(1)} ${y.toFixed(1)}`).join(' L ') : '';
+
+  const params = new URLSearchParams(location.search);
+  const grid = (params.get('grid') || '').trim().toUpperCase();
+  let idx = Math.max(0, parseInt(params.get('i') || '0', 10) || 0);
+  let data = null, passes = [];
+
+  const hhmm = (d) => `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  const hhmmZ = (d) => `${pad(d.getUTCHours())}${pad(d.getUTCMinutes())}Z`;
+
+  function rel(secs) {
+    const s = Math.round(Math.abs(secs)), past = secs < 0;
+    const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60);
+    const txt = h ? `${h} h ${pad(m)}` : (m ? `${m} min` : `${s} s`);
+    return past ? `${txt} ago` : `in ${txt}`;
+  }
+
+  function render() {
+    if (!data) return;
+    if (data.error) {
+      $('detail').innerHTML = `<div class="err">${esc(data.error)}</div>`;
+      $('pos').textContent = '—';
+      return;
+    }
+    $('qth').textContent = `${data.qth.name} · ${data.qth.lat.toFixed(4)}, ${data.qth.lon.toFixed(4)}`;
+    if (!passes.length) {
+      $('detail').innerHTML = '<div class="empty">Nothing above the horizon in the next 24 hours.</div>';
+      $('pos').textContent = '0 of 0';
+      $('prev').disabled = $('next').disabled = true;
+      return;
+    }
+    idx = Math.min(Math.max(0, idx), passes.length - 1);
+    const p = passes[idx];
+    const now = Date.now();
+    const aos = Date.parse(p.aos), los = Date.parse(p.los), tca = Date.parse(p.tca);
+    const live = now >= aos && now < los;
+
+    $('pos').textContent = `${idx + 1} of ${passes.length}`;
+    $('prev').disabled = idx === 0;
+    $('next').disabled = idx === passes.length - 1;
+    $('now').textContent = `${hhmm(new Date())} local · ${hhmmZ(new Date())}`;
+
+    // Sky track. AOS and LOS are marked because "which way does it come up"
+    // is the question you actually have while pointing an antenna.
+    const pts = (p.track || []).map(([az, el]) => proj(az, el));
+    $('arc').setAttribute('d', pathOf(pts));
+    if (pts.length) {
+      const [ax, ay] = pts[0], [lx, ly] = pts[pts.length - 1];
+      $('aosdot').setAttribute('cx', ax); $('aosdot').setAttribute('cy', ay);
+      $('losdot').setAttribute('cx', lx); $('losdot').setAttribute('cy', ly);
+    }
+    $('dialcap').textContent =
+      `rise ${Math.round(p.aos_az)}° → peak ${Math.round(p.peak_el)}° at ${Math.round(p.peak_az)}° → set ${Math.round(p.los_az)}°`;
+
+    const badge = live ? '<span class="badge live">live</span>'
+      : (aos - now < 30 * 60000 ? '<span class="badge soon">soon</span>' : '');
+    const when = live ? `LOS ${rel((los - now) / 1000)}` : `AOS ${rel((aos - now) / 1000)}`;
+    const khz = (v) => v ? (v / 1000).toFixed(3) : '—';
+
+    $('detail').innerHTML = `
+      <div class="hdr"><h1>${esc(p.display)}</h1>${badge}
+        <span class="badge">${esc(p.mode || '')}</span></div>
+      <div class="sub">${esc(p.tle_name || '')}</div>
+      <dl class="rows">
+        <dt>${live ? 'sets' : 'rises'}</dt><dd class="big">${esc(when)}</dd>
+        <dt>window</dt><dd>${hhmm(new Date(aos))} → ${hhmm(new Date(los))} local
+          <small>· ${hhmmZ(new Date(aos))}–${hhmmZ(new Date(los))} · ${Math.round(p.duration_s / 60)} min</small></dd>
+        <dt>peak</dt><dd>${Math.round(p.peak_el)}° at ${Math.round(p.peak_az)}°
+          <small>· TCA ${hhmm(new Date(tca))}</small></dd>
+        <dt>downlink</dt><dd>${khz(p.downlink_khz)} <small>MHz</small></dd>
+        <dt>uplink</dt><dd>${khz(p.uplink_khz)} <small>MHz${p.xpdr ? ' · ' + esc(p.xpdr) : ''}</small></dd>
+      </dl>
+      ${p.note ? `<p class="note">${esc(p.note)}</p>` : ''}`;
+
+    // Keep the position in the URL so a particular pass is a link, and so
+    // reload does not throw you back to the first one.
+    const u = new URL(location.href);
+    u.searchParams.set('i', String(idx));
+    history.replaceState(null, '', u.toString());
+  }
+
+  function step(d) { idx += d; render(); }
+
+  $('prev').addEventListener('click', () => step(-1));
+  $('next').addEventListener('click', () => step(1));
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowLeft') { step(-1); e.preventDefault(); }
+    if (e.key === 'ArrowRight') { step(1); e.preventDefault(); }
+  });
+
+  async function load() {
+    const url = grid
+      ? `/api/passes/grid?grid=${encodeURIComponent(grid)}&hours=24`
+      : '/api/passes?hours=24';
+    try {
+      const r = await fetch(url, {cache: 'no-store'});
+      const text = await r.text();
+      try { data = JSON.parse(text); }
+      catch (e) { data = {error: `HTTP ${r.status} ${r.statusText} (not JSON)`}; }
+      if (!r.ok && !data.error) data = {error: `HTTP ${r.status}`};
+    } catch (e) { data = {error: String(e)}; }
+
+    if (data && !data.error) {
+      // Passes that have already set are dropped: this page is for what is
+      // still to come, and a stepper that opens on last night's passes buries
+      // the one you actually want.
+      const now = Date.now();
+      passes = (data.passes || []).filter((p) => Date.parse(p.los) > now);
+      if (grid) {
+        $('eyebrow').textContent = `Shack-Track · one pass at a time · ${grid}`;
+        document.title = `Shack-Track · Bird · ${grid}`;
+      }
+      $('srcnote').innerHTML = grid
+        ? `<a href="/?grid=${encodeURIComponent(grid)}">all passes for ${esc(grid)}</a>`
+        : '<a href="/">all passes</a>';
+    }
+    render();
+  }
+
+  load();
+  // The countdown is the only thing that moves; a whole reload every second
+  // would fight the operator's stepping.
+  setInterval(render, 1000);
+  setInterval(load, 5 * 60000);
+})();
+</script>
+</body>
+</html>

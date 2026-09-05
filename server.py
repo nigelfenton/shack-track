@@ -202,6 +202,15 @@ def strip():
     return send_from_directory(app.static_folder, "strip.html")
 
 
+@app.get("/bird")
+def bird_page():
+    """One pass at a time, with fore/aft buttons -- the second-screen view.
+
+    Public and grid-aware like the pass list: it reads the same /api/passes or
+    /api/passes/grid and never touches the radio, so it needs no login."""
+    return send_from_directory(app.static_folder, "bird.html")
+
+
 # How many distinct grids we will hold pass lists for at once. Each entry is a
 # 24 h list (~280 kB) and costs ~2.6 s to build, so this is the knob that stops
 # a public URL turning into an unbounded compute-and-memory sink: ?grid= is the
