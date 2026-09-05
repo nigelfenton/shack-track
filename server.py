@@ -359,11 +359,21 @@ if __name__ == "__main__":
     # Warm the 24 h list so the first live poll after a restart does not wait on
     # the recompute (measured 2.58 s cold on the hub, not the ~20 s once claimed).
     def warm():
+        # WARM WHAT THE PAGE ACTUALLY ASKS FOR. The 24 h list backs /api/live and
+        # /api/next, but static/index.html requests `/api/passes?hours=12`, which
+        # is a DIFFERENT cache key -- so priming only 24.0 left the first visitor
+        # computing 12.0 from cold while this thread held the CPU for the other.
+        # Measured on one restart: the 24 h list answered in 0.04 s while the
+        # 12 h request the page makes took 18.7 s. Both now, in the page's order.
         try:
-            _cached("passes:24.0", PASS_TTL_S, lambda: engine.compute(engine.load_config(SATS), TLE, 24.0))
+            cfg = engine.load_config(SATS)
+            for hours in (12.0, 24.0):
+                _cached("passes:%s" % hours, PASS_TTL_S,
+                        lambda h=hours: engine.compute(cfg, TLE, h),
+                        max_stale=PASS_MAX_STALE_S)
             print("shack-track: pass cache warm", file=sys.stderr)
         except Exception as e:  # noqa: BLE001
-            print(f"shack-track: warm-up failed: {e}", file=sys.stderr)
+            print("shack-track: warm-up failed: %s" % e, file=sys.stderr)
     threading.Thread(target=warm, name="warm", daemon=True).start()
     # Re-engage whatever was engaged before the restart, once the cache is warm
     # enough to answer. This is what makes an overnight run survive a reboot.
