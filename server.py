@@ -52,6 +52,27 @@ PASS_TTL_S = 60
 KEPS_TTL_S = 600
 LIVE_TTL_S = 0.9       # the view polls at 1 Hz; never serve two callers two computes
 RADIO_TTL_S = 0.9
+
+# HOW STALE IS TOO STALE TO SERVE AT ALL.
+#
+# The TTLs above decide when to REFRESH. These decide when a stale value stops
+# being worth showing, and the caller waits for a real one instead. Without a
+# ceiling, stale-while-revalidate serves whatever was last computed no matter
+# how old: this page was observed handing back a pass list from 14:46Z at
+# 22:03Z -- seven hours out, with /api/live picking a finished pass as
+# "current" while /api/next disagreed with it.
+#
+# That happens because nothing polls this service. It was written for a 1 Hz
+# viewer, but the real access pattern is nobody for hours and then one person
+# opening the page just before a pass -- so the FIRST request, the one that
+# matters most, is the one guaranteed to be stale. Only the second is right.
+#
+# Serving inline is affordable: a cold 24 h recompute measures 2.58 s on the
+# hub (2.59/2.57/2.59 over three runs; 1 h = 0.37 s, 6 h = 1.23 s). The old
+# docstring's "~20 s" is what justified unbounded staleness, and it is wrong
+# by a factor of eight. Measure before inheriting a constraint.
+PASS_MAX_STALE_S = 300     # five minutes: still the right passes, wrong countdown
+LIVE_MAX_STALE_S = 5       # a live view showing 5 s old geometry is lying
 RIGCTL_TIMEOUT_S = 0.7
 
 # AetherSDR IS a rigctl server (port 4532) -- no Hamlib. aurora13's LAN address
@@ -78,29 +99,54 @@ def _now_iso() -> str:
 _refreshing: set[str] = set()
 
 
-def _cached(key: str, ttl: float, fn):
-    """Cache with stale-while-revalidate. An expired entry is returned as-is
-    and refreshed on a background thread, so a 1 Hz poller never waits on a
-    recompute (the 24 h pass list takes ~20 s on the hub). Only a cold cache
-    computes inline."""
+def _cached(key: str, ttl: float, fn, *, max_stale: float | None = None):
+    """Cache with stale-while-revalidate and a staleness CEILING.
+
+    Inside `ttl` the cached value is served directly. Past it the value is
+    still served -- but only while it is younger than `max_stale`, and a
+    background refresh is kicked off so the next caller gets a fresh one. Past
+    `max_stale` the entry is treated as absent and recomputed inline, because
+    a pass list from seven hours ago is not a slightly-late answer, it is a
+    wrong one.
+
+    `max_stale=None` keeps the old unbounded behaviour, which is right only
+    for values whose staleness is self-evident to the caller.
+
+    A background refresh that RAISES evicts the entry rather than leaving it to
+    be served forever: the previous version logged the exception and kept
+    handing out the stale value with no ceiling and no further attempt to
+    replace it, so one transient failure became permanent bad data.
+    """
+    now = time.monotonic()
     with _lock:
         hit = _cache.get(key)
-        fresh = hit and time.monotonic() - hit[0] < ttl
-        if hit and not fresh and key not in _refreshing:
-            _refreshing.add(key)
-            def refresh():
-                try:
-                    value = fn()
-                    with _lock:
-                        _cache[key] = (time.monotonic(), value)
-                except Exception:  # noqa: BLE001
-                    app.logger.exception("background refresh of %s failed", key)
-                finally:
-                    with _lock:
-                        _refreshing.discard(key)
-            threading.Thread(target=refresh, name=f"refresh-{key}", daemon=True).start()
         if hit:
-            return hit[1]
+            age = now - hit[0]
+            if age < ttl:
+                return hit[1]
+            # Expired. Serve it only if it is still inside the ceiling.
+            servable = max_stale is None or age < max_stale
+            if key not in _refreshing:
+                _refreshing.add(key)
+
+                def refresh():
+                    try:
+                        value = fn()
+                        with _lock:
+                            _cache[key] = (time.monotonic(), value)
+                    except Exception:  # noqa: BLE001
+                        app.logger.exception("background refresh of %s failed", key)
+                        with _lock:
+                            _cache.pop(key, None)
+                    finally:
+                        with _lock:
+                            _refreshing.discard(key)
+
+                threading.Thread(target=refresh, name=f"refresh-{key}", daemon=True).start()
+            if servable:
+                return hit[1]
+            # Too stale to show. Fall through and compute inline; the caller
+            # waits ~2.6 s at worst rather than being told yesterday's news.
     value = fn()
     with _lock:
         _cache[key] = (time.monotonic(), value)
@@ -120,7 +166,8 @@ def api_passes():
         return jsonify({"error": "hours must be a number"}), 400
     try:
         result = _cached(f"passes:{hours}", PASS_TTL_S,
-                         lambda: engine.compute(engine.load_config(SATS), TLE, hours))
+                         lambda: engine.compute(engine.load_config(SATS), TLE, hours),
+                         max_stale=PASS_MAX_STALE_S)
     except (OSError, ValueError) as e:
         # The case the page must SHOW. A missing TLE file is not "no passes".
         return jsonify({"error": f"pass engine cannot read its inputs: {e}",
@@ -165,7 +212,8 @@ def api_next():
     """
     try:
         result = _cached("passes:24.0", PASS_TTL_S,
-                         lambda: engine.compute(engine.load_config(SATS), TLE, 24.0))
+                         lambda: engine.compute(engine.load_config(SATS), TLE, 24.0),
+                         max_stale=PASS_MAX_STALE_S)
     except (OSError, ValueError) as e:
         return jsonify({"error": f"pass engine cannot read its inputs: {e}"}), 503
     except Exception as e:  # noqa: BLE001
@@ -223,14 +271,17 @@ def api_live():
     try:
         cfg = engine.load_config(SATS)
         sat = (request.args.get("sat") or "").strip() or None
-        passes24 = _cached("passes:24.0", PASS_TTL_S, lambda: engine.compute(cfg, TLE, 24.0))
+        passes24 = _cached("passes:24.0", PASS_TTL_S,
+                           lambda: engine.compute(cfg, TLE, 24.0),
+                           max_stale=PASS_MAX_STALE_S)
         # Read the radio FIRST when no pin is set, so the view can follow the
         # bird the operator is actually listening to rather than the clock.
         radio_first = _cached("radio", RADIO_TTL_S, _read_radio) if not sat else None
         rhz = radio_first.get("hz") if (radio_first and radio_first.get("reachable")) else None
         state = _cached(f"live:{sat or '*'}:{(rhz or 0) // 100000}", LIVE_TTL_S,
                         lambda: engine.live_state(cfg, TLE, precomputed=passes24, sat=sat,
-                                                  radio_hz=rhz))
+                                                  radio_hz=rhz),
+                        max_stale=LIVE_MAX_STALE_S)
     except (OSError, ValueError) as e:
         return jsonify({"error": f"pass engine cannot read its inputs: {e}"}), 503
     except Exception as e:  # noqa: BLE001
@@ -250,9 +301,12 @@ def _live_for(sat: str) -> dict:
     """Live state for one bird, from the same cache the operating view reads."""
     try:
         cfg = engine.load_config(SATS)
-        passes24 = _cached("passes:24.0", PASS_TTL_S, lambda: engine.compute(cfg, TLE, 24.0))
+        passes24 = _cached("passes:24.0", PASS_TTL_S,
+                           lambda: engine.compute(cfg, TLE, 24.0),
+                           max_stale=PASS_MAX_STALE_S)
         return _cached(f"live:{sat}:pinned", LIVE_TTL_S,
-                       lambda: engine.live_state(cfg, TLE, precomputed=passes24, sat=sat))
+                       lambda: engine.live_state(cfg, TLE, precomputed=passes24, sat=sat),
+                       max_stale=LIVE_MAX_STALE_S)
     except Exception as e:  # noqa: BLE001
         return {"error": f"{type(e).__name__}: {e}"}
 
@@ -302,7 +356,8 @@ def api_health():
 if __name__ == "__main__":
     print(f"shack-track: TLE={TLE} sats={SATS} keps={KEPS or '(off)'} on {BIND}:{PORT}",
           file=sys.stderr)
-    # Warm the 24 h list so the first live poll after a restart is not a 20 s wait.
+    # Warm the 24 h list so the first live poll after a restart does not wait on
+    # the recompute (measured 2.58 s cold on the hub, not the ~20 s once claimed).
     def warm():
         try:
             _cached("passes:24.0", PASS_TTL_S, lambda: engine.compute(engine.load_config(SATS), TLE, 24.0))
