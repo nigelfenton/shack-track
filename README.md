@@ -10,6 +10,11 @@ wired up yet). `passes.py` (Skyfield engine), `server.py` (Flask, `/api/passes`,
 (the birds), `test_passes.py` (run it after touching the engine). Reads
 `/home/nigel/satpass/amateur.tle`, the file the daily FD renderer refreshes.
 
+**Your QTH.** The `satellites.json` in this repo carries a placeholder QTH, the centre
+of **II22TB** on Ascension Island. Copy it somewhere outside the checkout, put your own
+`qth` in it, and point `SHACKTRACK_SATS` at the copy; `server.py` and `sat_capture.py`
+both read it from there. The `.out` files are emptied placeholders for local capture logs.
+
 ## Why not build a tracker
 
 SatPC32 (Erich Eichmann **DK1TB**, closed shareware, proceeds to AMSAT — registered here)

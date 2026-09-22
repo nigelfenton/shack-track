@@ -40,10 +40,22 @@ C_KMS = 299792.458
 # because that is the side the radio is tuned to on receive.
 DEFAULT_DOWNLINK_HZ = 435_645_000
 
-# II22TB -- the station QTH. Gpredict shipped a sample.qth set to Copenhagen and it
-# cost 74 deg of azimuth before anyone noticed, so this is stated explicitly
-# rather than read from another program's config.
-QTH_LAT, QTH_LON, QTH_ALT_M = -7.9375, -14.375, 19
+# The station QTH comes from Shack-Track's own satellites.json (SHACKTRACK_SATS,
+# as server.py reads it), never from another program's config: Gpredict shipped
+# a sample.qth set to Copenhagen and it cost 74 deg of azimuth before anyone
+# noticed. The satellites.json in this repo holds a placeholder QTH (Ascension
+# Island, II22TB); a station points SHACKTRACK_SATS at a local copy with its own.
+def _load_qth():
+    import json
+    import os
+    from pathlib import Path
+    here = Path(__file__).resolve().parent
+    path = Path(os.environ.get("SHACKTRACK_SATS", here / "satellites.json"))
+    q = json.loads(path.read_text(encoding="utf-8"))["qth"]
+    return float(q["lat"]), float(q["lon"]), float(q.get("alt_m", 0))
+
+
+QTH_LAT, QTH_LON, QTH_ALT_M = _load_qth()
 
 
 def rigctl(host, port, cmd, timeout=3):

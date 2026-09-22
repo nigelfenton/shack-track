@@ -14,7 +14,10 @@ Configuration is by environment so the same file runs on aurora13 for a look and
 on shack-hub for real:
 
     SHACKTRACK_TLE     TLE file          (default: amateur.tle beside this script)
-    SHACKTRACK_SATS    satellites.json   (default: beside this script)
+    SHACKTRACK_SATS    satellites.json   (default: beside this script; the copy
+                                          in the repo has a placeholder QTH,
+                                          Ascension Island II22TB, so a station
+                                          points this at a local copy with its own)
     SHACKTRACK_KEPS    keps-watch.py     (default: beside this script; "" disables)
     SHACKTRACK_PORT    listen port       (default 8781)
     SHACKTRACK_BIND    listen address    (default 127.0.0.1; 0.0.0.0 on the hub)
