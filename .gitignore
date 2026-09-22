@@ -2,3 +2,4 @@ __pycache__/
 *.pyc
 tracker-state.json
 satellites.local.json
+de421.bsp
