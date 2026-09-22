@@ -95,7 +95,12 @@ must all describe **one** instant — now az 132, el 44, still climbing toward a
 
 ## ⚠ About the capture files
 
-**Neither RS-44 capture in this folder is a clean reference.** Both have a note or a caveat:
+**The raw captures are not published.** They were logged at the station, and a timed
+az/el/range-rate record of a known satellite gives the observer's position away, so they
+stay local. What they showed is recorded below and in the notes; the one test that needed
+one keeps three rows inline.
+
+**Neither RS-44 capture was a clean reference.** Both have a note or a caveat:
 
 | file | what it is |
 |---|---|
@@ -107,6 +112,10 @@ must all describe **one** instant — now az 132, el 44, still climbing toward a
 Despite the name it is **not a pass**: 735 rows, 04:01–04:13Z, elevation −50° to −29°,
 never above the horizon, `radio_hz` empty throughout. It is the twelve minutes of
 `sat_capture.py` output *before* AOS. It is still useful for one thing — its `up_hz`/`dn_hz`
-columns pin the Doppler sign convention (`test_passes.py` uses it for exactly that) — but
+columns pin the Doppler sign convention (`test_passes.py` keeps three of its rows inline for exactly that) — but
 do not cite it as the RS-44 pass evidence. The proven live capture is the radio log
 described in `DDE-FORMAT.md` (−1753 → −2538 Hz against Skyfield's −2166 Hz).
+
+## Licence
+
+GPL-3.0-or-later; see [`LICENSE`](LICENSE). Copyright (C) 2026 Nigel Fenton, G0JKN.

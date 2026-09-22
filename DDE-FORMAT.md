@@ -96,7 +96,7 @@ coefficients, evaluate anywhere — no propagator needed at draw time. The plot 
 `design/interface-concepts.html` currently uses the 41 raw points directly
 (exact, and simpler still when the data is already to hand).
 
-`design/rs44-real-pass.txt` holds those samples, and
+The samples themselves stay local (station captures are not published);
 `~/bin/render-fd-sats.py` on shack-hub is the reference implementation — same
 projection, `r = R*(90-el)/90`, north up.
 
@@ -211,8 +211,8 @@ one records what the radio DID. Neither proves the interaction alone.
 ## ⭐⭐ Gpredict ships a Copenhagen QTH — check it FIRST
 
 Gpredict's numbers looked plausible but wrong: ISS at el −23.96, az 134.81,
-range 6081 km, AOS 07:03:46Z — against Skyfield's −55.69 / 60.39 / 11045 km /
-06:45:58Z for the same instant and the same elements.
+range 6081 km — against Skyfield's −55.69 / 60.39 / 11045 km for the same instant
+and the same elements, with AOS 18 minutes apart.
 
 **Cause: `sample.qth`, "Copenhagen, Denmark" (55.6167N, 12.65E)** — the shipped
 default, 6500 km from II22TB. Every figure was correct *for Denmark*. An 18-minute
@@ -309,13 +309,12 @@ signal arrives LOW and the radio must tune DOWN. It did. Not merely moving —
 moving the correct way.
 
 `Gpredict → AetherSDR rigctl :4532 → IC-9700` is therefore proven for sustained
-Doppler tracking, not just a one-off frequency set. Captured in
-`iss-doppler-2026-08-29.csv`.
+Doppler tracking, not just a one-off frequency set. (The capture stays local.)
 
 ## ⛔ 2026-08-29 — a 2090-sample log of nothing, and how to tell
 
 The ISS window 06:19-06:54 UTC was logged at a clean 1 Hz with no gaps, and
-contains no pass. Kept as `iss-NOT-A-PASS-2026-08-29.csv` because the failure is
+contains no pass. Kept locally as `iss-NOT-A-PASS-2026-08-29.csv` because the failure is
 more instructive than another good capture. Gpredict and AetherSDR were both
 found not running afterwards, and nothing was listening on 4532 — the engagement
 had been lost BEFORE AOS and was never re-verified.

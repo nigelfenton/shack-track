@@ -100,22 +100,23 @@ try:
 except TypeError as e:
     check("results are plain-JSON serialisable", False, str(e))
 
-# 4c. Doppler sign convention against pass-RS44-2026-08-29.csv. NOTE: despite
-#     its name that file is 12 min of PRE-AOS geometry (el -50 to -29, never
-#     above the horizon), so it cannot check a pass -- but its up_hz/dn_hz
-#     columns encode the convention a Gpredict-driven radio was seen to follow
-#     that night, and physics does not care about the horizon. Three instants,
-#     engine vs file, using the same range rate the file recorded so only the
-#     FORMULA is under test (its elements were a few hours older than ours).
-import csv
-rows = [r for r in csv.DictReader(open(HERE / "pass-RS44-2026-08-29.csv", encoding="utf-8")) if r["range_rate_kms"]]
-picks = [rows[0], rows[len(rows) // 2], rows[-1]]
+# 4c. Doppler sign convention against three rows of a 2026-08-29 RS-44 capture
+#     (first, middle, last), kept inline because the station's raw captures are
+#     not published. That capture was 12 min of PRE-AOS geometry, so it cannot
+#     check a pass -- but its up_hz/dn_hz columns encode the convention a
+#     Gpredict-driven radio was seen to follow that night, and physics does not
+#     care about the horizon. Engine vs recording, using the range rate it
+#     recorded, so only the FORMULA is under test.
+RECORDED = (  # (range_rate_kms, up_hz, dn_hz)
+    (-3.6779961, 145963209, 435645345),
+    (-4.3824264, 145962866, 435646368),
+    (-4.8638353, 145962632, 435647068),
+)
 worst = 0
-for r in picks:
-    rr = float(r["range_rate_kms"])
+for rr, up_rec, dn_rec in RECORDED:
     dn = engine.doppler(435640_000, rr, uplink=False)["hz"]
     up = engine.doppler(145965_000, rr, uplink=True)["hz"]
-    worst = max(worst, abs(dn - int(r["dn_hz"])), abs(up - int(r["up_hz"])))
+    worst = max(worst, abs(dn - dn_rec), abs(up - up_rec))
 check("Doppler formula reproduces the recorded up/down columns", worst <= 5,
       f"worst {worst} Hz at three instants")
 check("Doppler sign: approaching bird heard HIGH on the downlink",

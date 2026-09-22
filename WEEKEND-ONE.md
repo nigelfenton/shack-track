@@ -79,7 +79,7 @@ Gpredict give it for free. The physics is simple —
 directly, but "simple" is how tonight's polar-plot errors started.
 
 ⭐ **Verify against a known-good source before trusting it:** compare against the recorded pass rather than trusting the formula. That is what
-`pass-RS44-2026-08-29.csv` is for — 369 samples of an independently computed
+a recorded pass is for (the station's captures stay local) — 369 samples of an independently computed
 pass to check against, including range rate crossing -4.09 to +4.11 km/s.
 
 ## Why bother at all
@@ -99,10 +99,9 @@ The goal: show this at a club without carrying the shack there.
 
 ## Most of it already exists
 
-⭐ **`g0jkn.com` already tunnels to the hub's Apache on port 80** (cloudflared,
-active, with `g0jkn.com` / `www` / `shack.` all routed to `localhost:80`). So
-`/shack-track` is a **vhost path, not new infrastructure** — no port forwarding,
-no inbound hole, no new certificate.
+⭐ **The station's public site already reaches the hub's web server through a
+tunnel**, so `/shack-track` is a **path on an existing site, not new
+infrastructure** — no port forwarding, no inbound hole, no new certificate.
 
 The weekend-one server runs on the hub anyway, which is the same machine serving
 the site. That makes deployment a `<Location>` block proxying to Flask.
