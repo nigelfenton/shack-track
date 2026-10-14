@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Shack-Track · setup</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chivo:wght@700;900&family=Source+Sans+3:wght@400;600&family=JetBrains+Mono:wght@400;700&display=swap">
+<style>
+/* Same palette as live.html (AetherSDR dark seed). */
+:root{
+  --ground:#EEF2F7; --panel:#FFFFFF; --panel-2:#E4EAF2; --edge:#C9D4E2;
+  --ink:#0F1520; --ink-2:#33404F; --label:#5C6B80;
+  --live:#1E9E56; --soon:#A96C00; --los:#C43333; --track:#0089a8;
+  --shadow:0 1px 2px rgba(15,21,32,.06),0 8px 24px rgba(15,21,32,.05);
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --ground:#0f0f1a; --panel:#151b28; --panel-2:#1a2330; --edge:#304050;
+    --ink:#c8d8e8; --ink-2:#a8bcd0; --label:#8ea8c0;
+    --live:#4dd87a; --soon:#ffb84d; --los:#ff4d4d; --track:#00b4d8;
+    --shadow:0 1px 2px rgba(0,0,0,.5),0 10px 30px rgba(0,0,0,.4);
+  }
+}
+:root[data-theme="dark"]{
+  --ground:#0f0f1a; --panel:#151b28; --panel-2:#1a2330; --edge:#304050;
+  --ink:#c8d8e8; --ink-2:#a8bcd0; --label:#8ea8c0;
+  --live:#4dd87a; --soon:#ffb84d; --los:#ff4d4d; --track:#00b4d8;
+  --shadow:0 1px 2px rgba(0,0,0,.5),0 10px 30px rgba(0,0,0,.4);
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--ground);color:var(--ink);font-family:"Source Sans 3",ui-sans-serif,system-ui,sans-serif;
+  font-size:16px;line-height:1.5;-webkit-font-smoothing:antialiased}
+.wrap{max-width:760px;margin:0 auto;padding:28px 16px 60px;display:flex;flex-direction:column;gap:16px}
+h1{font-family:Chivo,sans-serif;font-weight:900;font-size:1.6rem;margin:0}
+h2{font-family:Chivo,sans-serif;font-weight:700;font-size:1.05rem;margin:0 0 4px}
+.eyebrow{font-family:"JetBrains Mono",ui-monospace,monospace;font-size:.7rem;letter-spacing:.16em;text-transform:uppercase;color:var(--label)}
+.mono{font-family:"JetBrains Mono",ui-monospace,monospace;font-variant-numeric:tabular-nums}
+.card{background:var(--panel);border:1px solid var(--edge);border-radius:10px;box-shadow:var(--shadow);padding:18px 20px;display:flex;flex-direction:column;gap:12px}
+.hint{color:var(--label);font-size:.9rem;margin:0}
+.row{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px}
+label{display:flex;flex-direction:column;gap:4px;font-size:.85rem;color:var(--ink-2)}
+input{font:inherit;font-family:"JetBrains Mono",ui-monospace,monospace;padding:8px 10px;border:1px solid var(--edge);border-radius:6px;
+  background:var(--panel-2);color:var(--ink);min-width:0}
+input:focus{outline:2px solid var(--track);outline-offset:1px}
+.or{align-self:center;color:var(--label);font-size:.85rem}
+.btns{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+button{font:inherit;font-weight:600;padding:8px 16px;border-radius:6px;border:1px solid var(--edge);background:var(--panel-2);color:var(--ink);cursor:pointer}
+button.primary{background:var(--track);border-color:var(--track);color:#fff}
+button:disabled{opacity:.5;cursor:default}
+.now{font-size:.9rem;color:var(--ink-2)}
+.msg{font-size:.95rem;margin:0}
+.ok{color:var(--live)} .bad{color:var(--los)} .warn{color:var(--soon)}
+nav a{color:var(--track);margin-right:14px;font-size:.9rem}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <nav><a href="/">Passes</a><a href="/live">Operating</a><a href="/bird">Bird</a></nav>
+  <div>
+    <div class="eyebrow">Shack-Track</div>
+    <h1>Station setup</h1>
+    <p class="hint">Saved settings take effect on the next refresh. No restart needed.</p>
+  </div>
+
+  <section class="card" aria-labelledby="loc-h">
+    <h2 id="loc-h">Location</h2>
+    <p class="now" id="loc-now">Loading…</p>
+    <div class="row">
+      <label>Grid square <input id="grid" placeholder="FM18RQ" maxlength="6" autocomplete="off"></label>
+      <span class="or">or</span>
+      <label>Latitude <input id="lat" inputmode="decimal" placeholder="38.7011"></label>
+      <label>Longitude <input id="lon" inputmode="decimal" placeholder="-76.5527"></label>
+    </div>
+    <div class="row">
+      <label>Height above sea level (m) <input id="alt" inputmode="numeric"></label>
+      <label>Minimum elevation (°) <input id="minel" inputmode="decimal"></label>
+    </div>
+    <p class="hint">A grid square is placed at its centre. Leave the location fields empty to keep the current position.</p>
+  </section>
+
+  <section class="card" aria-labelledby="rad-h">
+    <h2 id="rad-h">Radio</h2>
+    <p class="now" id="rad-now">Loading…</p>
+    <label>rigctl address (host:port) <input id="rigctl" placeholder="192.168.137.186:4532" autocomplete="off"></label>
+    <div class="btns">
+      <button type="button" id="test">Test radio</button>
+      <span class="msg" id="test-msg" role="status"></span>
+    </div>
+    <p class="hint">AetherSDR's rigctl server is on port 4532. The test only reads frequency and mode. Clear the field and save to go back to the default.</p>
+  </section>
+
+  <div class="btns">
+    <button type="button" class="primary" id="save">Save</button>
+    <span class="msg" id="save-msg" role="status"></span>
+  </div>
+</div>
+<script>
+const $ = id => document.getElementById(id);
+let current = null;
+
+function say(el, text, cls) { el.textContent = text; el.className = "msg " + (cls || ""); }
+
+function render(v) {
+  current = v;
+  const q = v.qth || {};
+  $("loc-now").textContent = "Now: " + (q.grid || q.name || "?") + " · " + q.lat + ", " + q.lon +
+    " · " + (q.alt_m ?? "?") + " m · passes above " + (v.min_elevation_deg ?? "?") + "°";
+  const r = v.rigctl || {};
+  $("rad-now").textContent = "Now: " + (r.target || "none") + " " +
+    (r.source === "setup" ? "(set here)" : "(the server's default)");
+  $("alt").value = q.alt_m ?? "";
+  $("minel").value = v.min_elevation_deg ?? "";
+  $("rigctl").value = r.source === "setup" ? r.target : "";
+  $("grid").value = ""; $("lat").value = ""; $("lon").value = "";
+}
+
+async function load() {
+  try {
+    const r = await fetch("/api/setup", {cache: "no-store"});
+    const v = await r.json();
+    if (!r.ok) throw new Error(v.error || r.status);
+    render(v);
+  } catch (e) { say($("save-msg"), "Could not load the settings: " + e.message, "bad"); }
+}
+
+$("test").onclick = async () => {
+  say($("test-msg"), "Testing…");
+  try {
+    const r = await fetch("/api/setup/radio-test", {method: "POST",
+      headers: {"Content-Type": "application/json"}, body: JSON.stringify({rigctl: $("rigctl").value})});
+    const v = await r.json();
+    if (v.reachable) say($("test-msg"), "Reached " + v.target + ": " + (v.hz / 1e6).toFixed(6) + " MHz " + (v.mode || ""), "ok");
+    else say($("test-msg"), v.error || ("No answer from " + v.target), "bad");
+  } catch (e) { say($("test-msg"), "Test failed: " + e.message, "bad"); }
+};
+
+$("save").onclick = async () => {
+  const body = {rigctl: $("rigctl").value};
+  for (const [id, key] of [["grid","grid"],["lat","lat"],["lon","lon"],["alt","alt_m"],["minel","min_elevation_deg"]]) {
+    const val = $(id).value.trim();
+    if (val !== "") body[key] = val;
+  }
+  $("save").disabled = true;
+  say($("save-msg"), "Saving…");
+  try {
+    const r = await fetch("/api/setup", {method: "POST",
+      headers: {"Content-Type": "application/json"}, body: JSON.stringify(body)});
+    const v = await r.json();
+    if (!r.ok || !v.ok) throw new Error(v.error || r.status);
+    render(v);
+    say($("save-msg"), "Saved. The station is now at " + (v.qth.grid || v.qth.name) + ".", "ok");
+  } catch (e) { say($("save-msg"), e.message, "bad"); }
+  finally { $("save").disabled = false; }
+};
+
+load();
+</script>
+</body>
+</html>
