@@ -15,6 +15,19 @@ of **II22TB** on Ascension Island. Copy it somewhere outside the checkout, put y
 `qth` in it, and point `SHACKTRACK_SATS` at the copy; `server.py` and `sat_capture.py`
 both read it from there. The `.out` files are emptied placeholders for local capture logs.
 
+**Setup page.** `/setup` edits that copy from a browser:
+- location, as a grid square or latitude/longitude (each shows the other, so a typo is visible)
+- height and minimum elevation
+- the radio's rigctl address, with a **Test radio** button that only reads frequency and mode
+
+A saved radio address (`"rigctl"` in the file) overrides `SHACKTRACK_RIGCTL`. Changes are live on
+the next refresh, with no restart. Every field is validated before anything is written; the
+previous file is kept as `.bak`.
+
+⚠ The setup endpoints change the station and make the server connect to an address the caller
+names, and the server has no auth of its own. Put `/setup` and `/api/setup` behind a login in front
+of it (on the hub, Apache Basic Auth). `test_setup.py` covers the API.
+
 ## Why not build a tracker
 
 SatPC32 (Erich Eichmann **DK1TB**, closed shareware, proceeds to AMSAT — registered here)

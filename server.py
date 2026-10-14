@@ -9,6 +9,13 @@ safe to expose and useful with the shack switched off.
     GET /api/passes       next N hours of passes, ?hours=12 (1..48)
     GET /api/keps         keps-watch.py --json, so staleness is visible on the page
     GET /api/health       what this server is reading and how old it is
+    GET /setup            station setup: location, minimum elevation, radio
+    GET/POST /api/setup   read / save those; POST /api/setup/radio-test reads
+                          f and m from a candidate rigctl address
+
+The setup endpoints change how the station behaves and make the server open a
+connection to an address the caller names, so a public deployment puts them
+behind a login (the hub's Apache does). The server itself has no auth.
 
 Configuration is by environment so the same file runs on aurora13 for a look and
 on shack-hub for real:
@@ -33,6 +40,7 @@ import csv
 from io import StringIO
 import json
 import os
+import re
 import socket
 import subprocess
 import sys
@@ -82,6 +90,8 @@ RIGCTL_TIMEOUT_S = 0.7
 
 # AetherSDR IS a rigctl server (port 4532) -- no Hamlib. aurora13's LAN address
 # is DHCP-assigned and has moved before; the Tailscale address is stable.
+# This is only the DEFAULT: a "rigctl" key in SHACKTRACK_SATS (written by the
+# setup page) wins, so the radio can be re-pointed without editing the unit.
 RIGCTL = os.environ.get("SHACKTRACK_RIGCTL", "10.0.0.104:4532")
 
 # Where the standing engagement is remembered across a restart. An unattended
@@ -446,14 +456,19 @@ def live_page():
     return send_from_directory(app.static_folder, "live.html")
 
 
-def _rigctl(cmd: bytes) -> str | None:
-    """One rigctl round trip. RECEIVE ONLY: only 'f' and 'm' are ever sent.
-    None means unreachable, and the caller must SAY so rather than reuse a
-    stale number -- a frozen frequency presented as current is the failure
-    the 2026-08-29 ISS log was made of."""
-    if not RIGCTL:
-        return None
-    host, _, port = RIGCTL.rpartition(":")
+def _rigctl_target() -> str:
+    """Where the radio is: the setup page's choice if it made one, else the
+    environment default. Read per call, like the satellite table, so a change
+    takes effect on the next poll without a restart."""
+    try:
+        saved = engine.load_config(SATS).get("rigctl")
+    except (OSError, ValueError):
+        saved = None
+    return saved if isinstance(saved, str) and saved else RIGCTL
+
+
+def _rigctl_at(target: str, cmd: bytes) -> str | None:
+    host, _, port = target.rpartition(":")
     try:
         with socket.create_connection((host, int(port)), timeout=RIGCTL_TIMEOUT_S) as s:
             s.sendall(cmd + b"\n")
@@ -462,18 +477,35 @@ def _rigctl(cmd: bytes) -> str | None:
         return None
 
 
-def _read_radio() -> dict:
-    f = _rigctl(b"f")
+def _rigctl(cmd: bytes) -> str | None:
+    """One rigctl round trip. RECEIVE ONLY: only 'f' and 'm' are ever sent.
+    None means unreachable, and the caller must SAY so rather than reuse a
+    stale number -- a frozen frequency presented as current is the failure
+    the 2026-08-29 ISS log was made of."""
+    target = _rigctl_target()
+    if not target:
+        return None
+    return _rigctl_at(target, cmd)
+
+
+def _read_radio_at(target: str) -> dict:
+    if not target:
+        return {"reachable": False, "target": "(no rigctl configured)"}
+    f = _rigctl_at(target, b"f")
     if f is None:
-        return {"reachable": False, "target": RIGCTL or "(no rigctl configured)"}
-    m = _rigctl(b"m") or ""
+        return {"reachable": False, "target": target}
+    m = _rigctl_at(target, b"m") or ""
     try:
         hz = int(f.split()[0])
     except (ValueError, IndexError):
-        return {"reachable": False, "target": RIGCTL, "error": f"unexpected reply to f: {f!r}"}
+        return {"reachable": False, "target": target, "error": f"unexpected reply to f: {f!r}"}
     mode = m.split("\n")[0] if m else ""
-    return {"reachable": True, "target": RIGCTL, "hz": hz, "mode": mode,
+    return {"reachable": True, "target": target, "hz": hz, "mode": mode,
             "read_at": _now_iso()}
+
+
+def _read_radio() -> dict:
+    return _read_radio_at(_rigctl_target())
 
 
 @app.get("/api/live")
@@ -550,6 +582,172 @@ def api_track_set():
         out = tracker.engage(sat, offset=int(body.get("offset", 0)))
         return jsonify(out), (200 if out.get("ok") else 409)
     return jsonify(tracker.disengage())
+
+
+# --- setup -------------------------------------------------------------------
+#
+# The station's own settings, editable from a page instead of over SSH. They
+# live in the satellite table (SHACKTRACK_SATS) beside the birds, because that
+# file is already re-read on every request: a saved change is live on the next
+# poll, with no restart and no second file to keep in step.
+
+_setup_lock = threading.Lock()
+
+RIGCTL_RE = re.compile(r"^[A-Za-z0-9.-]{1,253}:[0-9]{1,5}$")
+
+
+def _parse_rigctl(text) -> str:
+    """'host:port' or '' (meaning: use the default). Raises ValueError with a
+    sentence for the page. Hostnames and IPv4 only -- the radio is on the LAN
+    or the tailnet, and a strict shape keeps junk out of the saved file."""
+    t = (text or "").strip()
+    if not t:
+        return ""
+    if not RIGCTL_RE.match(t):
+        raise ValueError("The radio address is host:port, like 192.168.137.186:4532.")
+    port = int(t.rpartition(":")[2])
+    if not 1 <= port <= 65535:
+        raise ValueError("The radio's port must be between 1 and 65535.")
+    return t
+
+
+def _number(body: dict, key: str, lo: float, hi: float, what: str):
+    v = body.get(key)
+    if v is None or v == "":
+        return None
+    try:
+        n = float(v)
+    except (TypeError, ValueError):
+        raise ValueError(f"{what} must be a number.") from None
+    if not lo <= n <= hi:
+        raise ValueError(f"{what} must be between {lo:g} and {hi:g}.")
+    return n
+
+
+def validate_setup(body: dict) -> dict:
+    """Turn a setup form into the changes to save. Everything is checked before
+    anything is written; a bad field refuses the whole save with a sentence.
+
+    The position comes from EITHER a grid square OR latitude/longitude. Both
+    are resolved and returned as both, so the page can show the operator where
+    the station now is -- the Copenhagen lesson: a position nobody looks at is
+    a position nobody notices is wrong."""
+    out: dict = {}
+    grid = (body.get("grid") or "").strip()
+    lat = _number(body, "lat", -90, 90, "Latitude")
+    lon = _number(body, "lon", -180, 180, "Longitude")
+    if grid and (lat is not None or lon is not None):
+        raise ValueError("Give a grid square or a latitude and longitude, not both.")
+    if grid:
+        la, lo = engine.grid_to_latlon(grid)          # its ValueError is already a sentence
+        out["qth"] = {"name": grid.upper(), "lat": round(la, 4), "lon": round(lo, 4)}
+    elif lat is not None or lon is not None:
+        if lat is None or lon is None:
+            raise ValueError("Give both latitude and longitude.")
+        out["qth"] = {"name": engine.maidenhead(lat, lon).upper(),
+                      "lat": round(lat, 4), "lon": round(lon, 4)}
+    alt = _number(body, "alt_m", -500, 9000, "Height above sea level")
+    if alt is not None:
+        out["alt_m"] = round(alt)
+    minel = _number(body, "min_elevation_deg", 0, 45, "Minimum elevation")
+    if minel is not None:
+        out["min_elevation_deg"] = round(minel, 1)
+    if "rigctl" in body:
+        out["rigctl"] = _parse_rigctl(body.get("rigctl"))
+    return out
+
+
+def _setup_view(cfg: dict) -> dict:
+    q = cfg.get("qth", {})
+    saved = cfg.get("rigctl") if isinstance(cfg.get("rigctl"), str) else ""
+    view = {"qth": dict(q), "min_elevation_deg": cfg.get("min_elevation_deg"),
+            "rigctl": {"target": saved or RIGCTL, "source": "setup" if saved else "default",
+                       "default": RIGCTL},
+            "sats_file": str(SATS)}
+    try:
+        view["qth"]["grid"] = engine.maidenhead(float(q["lat"]), float(q["lon"])).upper()
+    except (KeyError, TypeError, ValueError):
+        pass
+    return view
+
+
+def save_setup(changes: dict) -> dict:
+    """Merge the changes into the satellite table and write it atomically.
+
+    Read raw and written back with its keys in order, so the _comment block and
+    every satellite entry survive untouched. The previous file is kept as .bak.
+    The pass caches are dropped, because every one of them was computed for the
+    old position."""
+    with _setup_lock:
+        raw = json.loads(SATS.read_text(encoding="utf-8"))
+        if "qth" in changes:
+            raw.setdefault("qth", {}).update(changes["qth"])
+        if "alt_m" in changes:
+            raw.setdefault("qth", {})["alt_m"] = changes["alt_m"]
+        if "min_elevation_deg" in changes:
+            raw["min_elevation_deg"] = changes["min_elevation_deg"]
+        if "rigctl" in changes:
+            if changes["rigctl"]:
+                raw["rigctl"] = changes["rigctl"]
+            else:
+                raw.pop("rigctl", None)
+        tmp = SATS.with_name(SATS.name + ".tmp")
+        tmp.write_text(json.dumps(raw, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+        if SATS.exists():
+            bak = SATS.with_name(SATS.name + ".bak")
+            bak.write_bytes(SATS.read_bytes())
+        os.replace(tmp, SATS)
+    with _lock:
+        _cache.clear()
+        _grid_seen.clear()
+    return raw
+
+
+@app.get("/setup")
+def setup_page():
+    return send_from_directory(app.static_folder, "setup.html")
+
+
+@app.get("/api/setup")
+def api_setup_get():
+    try:
+        return jsonify(_setup_view(engine.load_config(SATS)))
+    except (OSError, ValueError) as e:
+        return jsonify({"error": f"cannot read the station settings: {e}",
+                        "sats_file": str(SATS)}), 503
+
+
+@app.post("/api/setup")
+def api_setup_save():
+    body = request.get_json(silent=True)
+    if not isinstance(body, dict):
+        return jsonify({"ok": False, "error": "Send the settings as JSON."}), 400
+    try:
+        changes = validate_setup(body)
+    except ValueError as e:
+        return jsonify({"ok": False, "error": str(e)}), 400
+    if not changes:
+        return jsonify({"ok": False, "error": "Nothing to save."}), 400
+    try:
+        cfg = save_setup(changes)
+    except (OSError, ValueError) as e:
+        return jsonify({"ok": False, "error": f"could not save the settings: {e}"}), 500
+    app.logger.info("setup saved: %s", changes)
+    return jsonify({"ok": True, "saved": sorted(changes), **_setup_view(cfg)})
+
+
+@app.post("/api/setup/radio-test")
+def api_setup_radio_test():
+    """Read frequency and mode from a candidate radio address, before saving
+    it. Receive-only (f and m), like everything else here -- but it makes the
+    server connect where the caller says, which is why it sits behind the
+    setup login and not on the public side."""
+    body = request.get_json(silent=True) or {}
+    try:
+        target = _parse_rigctl(body.get("rigctl")) or _rigctl_target()
+    except ValueError as e:
+        return jsonify({"reachable": False, "error": str(e)}), 400
+    return jsonify(_read_radio_at(target))
 
 
 @app.get("/api/keps")
