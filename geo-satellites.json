@@ -1,0 +1,47 @@
+{
+  "_comment": "ANNOTATIONS for the geostationary weather list, not the list itself. geo.py lists every geostationary object in Celestrak's weather group and computes its longitude from its own elements; a row here only adds what we know about one. `tle` is a case-insensitive PREFIX matched against the TLE name; the longest match wins. Do not put a longitude here: slots get reassigned, and the computed one is the truth. Frequencies in MHz. Every `source` says where the number came from and when.",
+  "satellites": [
+    {
+      "tle": "GOES 19",
+      "display": "GOES-19",
+      "role": "GOES-East",
+      "downlinks": [
+        {"name": "HRIT/EMWIN", "mhz": 1694.1, "what": "400 kbps BPSK, linear polarisation. Full-disc and regional imagery plus EMWIN text. The one a 1 m dish and an RTL-SDR can decode."},
+        {"name": "GRB", "mhz": 1686.6, "what": "Full-resolution rebroadcast, dual circular polarisation, about 31 Mbps. Needs a much larger dish and a wideband receiver."}
+      ],
+      "note": "Operational GOES-East since April 2025. HRIT needs roughly a 1 m dish or a WiFi grid antenna, an L-band LNA with a filter, and an SDR; SatDump or goestools decode it.",
+      "source": "Frequencies: NOAA HRIT/EMWIN page and GOES-R fact sheet, checked 2026-11-16. Role: from memory, confirmed by the computed slot near 75.2 W."
+    },
+    {
+      "tle": "GOES 18",
+      "display": "GOES-18",
+      "role": "GOES-West",
+      "downlinks": [
+        {"name": "HRIT/EMWIN", "mhz": 1694.1, "what": "400 kbps BPSK, linear polarisation."},
+        {"name": "GRB", "mhz": 1686.6, "what": "Full-resolution rebroadcast, dual circular polarisation."}
+      ],
+      "note": "Operational GOES-West. Low in the south-west from the US east coast, so trees and buildings matter more than for GOES-East.",
+      "source": "Frequencies: NOAA HRIT/EMWIN page and GOES-R fact sheet, checked 2026-11-16. Role: from memory, confirmed by the computed slot near 137 W."
+    },
+    {
+      "tle": "GOES 17",
+      "display": "GOES-17",
+      "role": "GOES-R series, not operational East or West",
+      "downlinks": [
+        {"name": "HRIT/EMWIN", "mhz": 1694.1, "what": "Same design as GOES-18/19. Whether it is transmitting from its current slot is NOT known here."}
+      ],
+      "note": "A spare. Check NOAA's status page before pointing a dish at it.",
+      "source": "Frequency is the GOES-R series design value (NOAA, checked 2026-11-16). Broadcast status unverified."
+    },
+    {
+      "tle": "GOES 16",
+      "display": "GOES-16",
+      "role": "GOES-R series, not operational East or West",
+      "downlinks": [
+        {"name": "HRIT/EMWIN", "mhz": 1694.1, "what": "Same design as GOES-18/19. Whether it is transmitting from its current slot is NOT known here."}
+      ],
+      "note": "Was GOES-East until GOES-19 took over in 2025. Check NOAA's status page before pointing a dish at it.",
+      "source": "Frequency is the GOES-R series design value (NOAA, checked 2026-11-16). Broadcast status unverified."
+    }
+  ]
+}

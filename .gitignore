@@ -3,3 +3,5 @@ __pycache__/
 tracker-state.json
 satellites.local.json
 de421.bsp
+weather.tle
+run_local_preview.py

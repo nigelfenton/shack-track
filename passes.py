@@ -62,8 +62,28 @@ def load_config(path: Path) -> dict:
     return cfg
 
 
+# Further element files merged into every parse of the main one. The amateur
+# file does not carry the weather birds (Meteor-M and friends), so the server
+# points this at weather.tle to let them sit in the ordinary pass list.
+# The MAIN file wins a name clash, and an extra file that is absent is skipped:
+# a satellite that then cannot be matched shows up in `missing_from_tle`,
+# which is the honest answer.
+EXTRA_TLES: list[Path] = []
+
+
 def parse_tles(path: Path, ts):
-    """Return {name: EarthSatellite} for every well-formed 3-line entry."""
+    """Return {name: EarthSatellite} for every well-formed 3-line entry in
+    `path`, plus any in EXTRA_TLES that `path` does not already name."""
+    sats = _parse_one(path, ts)
+    for extra in EXTRA_TLES:
+        if extra == path or not extra.exists():
+            continue
+        for name, sat in _parse_one(extra, ts).items():
+            sats.setdefault(name, sat)
+    return sats
+
+
+def _parse_one(path: Path, ts):
     sats = {}
     lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
     i = 0

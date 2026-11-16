@@ -34,6 +34,8 @@
   --shadow:0 1px 2px rgba(0,0,0,.5),0 10px 30px rgba(0,0,0,.4);
 }
 *{box-sizing:border-box}
+/* `hidden` must win over the display:flex rules below. */
+[hidden]{display:none!important}
 body{margin:0;background:var(--ground);color:var(--ink);
   font-family:"Source Sans 3",ui-sans-serif,system-ui,sans-serif;font-size:16px;line-height:1.5;
   -webkit-font-smoothing:antialiased}
@@ -119,6 +121,45 @@ details summary{cursor:pointer}
 .note{font-size:.9rem;color:var(--label);max-width:70ch}
 .note b{color:var(--ink-2);font-weight:600}
 
+/* ---- view switch: passes, or the geostationary weather birds ---- */
+.vs{display:inline-flex;margin-top:10px}
+.vs button{font-family:"JetBrains Mono",ui-monospace,monospace;font-size:.72rem;letter-spacing:.08em;
+  text-transform:uppercase;color:var(--label);background:var(--panel);border:1px solid var(--edge);
+  padding:7px 14px;cursor:pointer}
+.vs button:first-child{border-radius:6px 0 0 6px;border-right-width:0}
+.vs button:last-child{border-radius:0 6px 6px 0}
+.vs button:hover{color:var(--ink-2)}
+.vs button[aria-pressed="true"]{color:var(--ink);background:var(--panel-2);border-color:var(--track)}
+.vs button:focus-visible,.georow:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+/* A geo row is a real button: it selects the satellite. */
+.georow{all:unset;box-sizing:border-box;width:100%;cursor:pointer;display:grid;
+  grid-template-columns:150px minmax(0,1fr) 96px;gap:16px;align-items:center;
+  padding:11px 8px;border-bottom:1px solid var(--edge);border-left:3px solid transparent}
+.georow:hover{background:var(--panel-2)}
+.georow[aria-pressed="true"]{background:var(--panel-2);border-left-color:var(--track)}
+.geomore{padding:12px 8px 4px}
+.geomore table{border-collapse:collapse;margin-top:8px;font-family:"JetBrains Mono",ui-monospace,monospace;font-size:.72rem}
+.geomore td{padding:2px 14px 2px 0;color:var(--label)}
+.card{padding:18px 22px;display:flex;flex-direction:column;gap:14px}
+.card h2{font-family:Chivo,sans-serif;font-weight:900;font-size:1.25rem;margin:0;display:flex;flex-wrap:wrap;gap:10px;align-items:baseline}
+.card h2 small{font-family:"JetBrains Mono",ui-monospace,monospace;font-weight:400;font-size:.7rem;color:var(--label);letter-spacing:.08em}
+.nums{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px}
+.num{background:var(--panel-2);border-radius:8px;padding:10px 12px}
+.num span{display:block;font-family:"JetBrains Mono",ui-monospace,monospace;font-size:.62rem;letter-spacing:.12em;text-transform:uppercase;color:var(--label)}
+.num b{font-family:"JetBrains Mono",ui-monospace,monospace;font-variant-numeric:tabular-nums;font-size:1.25rem}
+.num i{font-style:normal;font-size:.7rem;color:var(--label);display:block}
+.card p{margin:0;font-size:.92rem;color:var(--ink-2);max-width:72ch}
+.card .warnp{color:var(--soon)}
+.dls{display:flex;flex-direction:column;gap:8px}
+.dls div{display:grid;grid-template-columns:150px minmax(0,1fr);gap:12px;font-size:.9rem;align-items:baseline}
+.dls b{font-family:"JetBrains Mono",ui-monospace,monospace;font-size:.82rem}
+.dls b span{display:block;font-weight:400;color:var(--label);font-size:.68rem}
+.card .srcline{font-size:.76rem;color:var(--label)}
+@media (max-width:560px){
+  .georow{grid-template-columns:104px minmax(0,1fr) 64px;gap:10px}
+  .dls div{grid-template-columns:1fr;gap:2px}
+}
+
 /* ---- shared nav: the three views, same place on every page ---- */
 .nav{display:flex;gap:0;align-items:center;flex-wrap:wrap;margin-bottom:14px}
 .nav a{font-family:"JetBrains Mono",ui-monospace,monospace;font-size:.7rem;letter-spacing:.12em;
@@ -144,7 +185,12 @@ details summary{cursor:pointer}
   </nav>
   <header>
     <div class="eyebrow">Shack-Track · before the pass</div>
-    <h1>Tonight's passes</h1>
+    <h1 id="title">Tonight's passes</h1>
+    <div class="vs" role="group" aria-label="Which satellites to list">
+      <button type="button" id="vpass" aria-pressed="true">Passes</button>
+      <button type="button" id="vgeo" aria-pressed="false"
+              title="Geostationary weather satellites: no passes, just where to point.">Geo · weather</button>
+    </div>
     <div class="meta">
       <span class="tag" id="qth">QTH …</span>
       <span class="tag" id="window"><button id="hours">next 12 h</button></span>
@@ -173,8 +219,13 @@ details summary{cursor:pointer}
   </header>
 
   <div class="mock"><div class="tl" id="tl"><div class="empty">Loading…</div></div></div>
+  <div class="mock" id="geocard" hidden></div>
 
-  <p class="note">Bar length is <b>time above the horizon</b>; colour is <b>elevation class</b>
+  <p class="note" id="geonote" hidden>These satellites sit over the equator and do not rise or set, so there
+  are no pass times: the bar is <b>elevation above your horizon</b> and the number on the right is the
+  <b>true (not magnetic) azimuth</b>. Pick one for pointing and downlink details. Their broadcasts are
+  near 1.7 GHz, so this is for a dish and an SDR; <b>nothing here tunes a radio</b>.</p>
+  <p class="note" id="passnote">Bar length is <b>time above the horizon</b>; colour is <b>elevation class</b>
   (green ≥ 45°, cyan ≥ 20°, grey below). Times are local. Nothing here reads the radio.</p>
 
   <footer>
@@ -204,7 +255,7 @@ details summary{cursor:pointer}
 
   function render() {
     const tl = $('tl');
-    if (!data) return;
+    if (view !== 'passes' || !data) return;
     if (data.error) {
       tl.innerHTML = `<div class="err"><b>Pass engine not reachable</b>${esc(data.error)}</div>`;
       return;
@@ -255,6 +306,127 @@ details summary{cursor:pointer}
       + (data.missing_from_tle.length ? ` · not in TLE: ${data.missing_from_tle.join(', ')}` : '');
     $('gen').textContent = `computed ${hhmm(new Date(t0))} (${hhmmZ(new Date(t0))})`;
     renderKeps();
+  }
+
+  // ---- geostationary weather view ------------------------------------------
+  // Kept in the URL (?view=geo&sat=...) for the same reason the grid is: the
+  // result is a link, and a reload lands where you were.
+  let view = new URLSearchParams(location.search).get('view') === 'geo' ? 'geo' : 'passes';
+  let geoSel = new URLSearchParams(location.search).get('sat') || '';
+  let geo = null;
+  const geoGrid = (new URLSearchParams(location.search).get('grid') || '').trim().toUpperCase();
+
+  function setUrl() {
+    const u = new URL(location.href);
+    if (view === 'geo') u.searchParams.set('view', 'geo'); else u.searchParams.delete('view');
+    if (view === 'geo' && geoSel) u.searchParams.set('sat', geoSel); else u.searchParams.delete('sat');
+    history.replaceState(null, '', u.toString());
+  }
+
+  function elClass(el) { return el >= 45 ? 'hi' : el >= 20 ? 'mid' : 'lo'; }
+
+  function applyView() {
+    const g = view === 'geo';
+    $('vpass').setAttribute('aria-pressed', String(!g));
+    $('vgeo').setAttribute('aria-pressed', String(g));
+    $('title').textContent = g ? 'Geostationary weather satellites' : "Tonight's passes";
+    $('window').hidden = g; $('dl').hidden = g;
+    $('geonote').hidden = !g; $('passnote').hidden = g;
+    $('geocard').hidden = !g || !geoSel;
+    setUrl();
+    if (g) { if (geo) renderGeo(); else { $('tl').innerHTML = '<div class="empty">Loading…</div>'; } loadGeo(); }
+    else { render(); }
+  }
+
+  function renderGeo() {
+    if (view !== 'geo' || !geo) return;
+    const tl = $('tl');
+    if (geo.error) {
+      tl.innerHTML = `<div class="err"><b>Geostationary list not available</b>${esc(geo.error)}</div>`;
+      $('geocard').hidden = true;
+      return;
+    }
+    const seen = geo.sats.filter((s) => s.visible), hidden = geo.sats.filter((s) => !s.visible);
+    const rows = seen.map((s) => {
+      const w = Math.max(1, Math.min(100, s.el / 90 * 100));
+      const text = `el ${s.el.toFixed(1)}°`;
+      // The text needs ~70 px; on a phone the whole bar is barely twice that.
+      const inside = w > 55;
+      const aside = inside ? '' : `<b class="aside ${elClass(s.el)}" style="left:calc(${w.toFixed(2)}% + 6px)">${text}</b>`;
+      return `<button type="button" class="georow" data-sat="${esc(s.name)}" aria-pressed="${s.name === geoSel}">
+        <span class="tlname"><b>${esc(s.display)}</b><span>${esc(s.slot)}${s.role ? ' · ' + esc(s.role) : ''}</span></span>
+        <span class="bar"><em class="${elClass(s.el)}" style="left:0;width:${w.toFixed(2)}%">${inside ? text : ''}</em>${aside}</span>
+        <span class="tlwhen"><b>${s.az.toFixed(1)}°</b><span>azimuth</span></span>
+      </button>`;
+    });
+    if (!rows.length) rows.push(`<div class="empty">No geostationary weather satellite is at or above ${geo.min_elevation_deg}° from here.</div>`);
+    if (hidden.length) {
+      rows.push(`<details class="geomore"><summary>${hidden.length} more not in view from here</summary><table>`
+        + hidden.map((s) => `<tr><td>${esc(s.display)}</td><td>${esc(s.slot)}</td><td>${s.el > 0 ? 'only ' + s.el.toFixed(1) + '° up' : 'below the horizon'}</td></tr>`).join('')
+        + `</table></details>`);
+    }
+    tl.innerHTML = rows.join('');
+    for (const b of tl.querySelectorAll('.georow')) {
+      b.addEventListener('click', () => {
+        geoSel = b.dataset.sat === geoSel ? '' : b.dataset.sat;
+        setUrl(); renderGeo();
+      });
+    }
+    $('qth').textContent = `${geo.qth.name} · ${geo.qth.lat.toFixed(4)}, ${geo.qth.lon.toFixed(4)}`;
+    $('src').textContent = `${seen.length} of ${geo.sats.length} in view · ${geo.tle_count} weather TLEs`
+      + (geo.fetch && geo.fetch.detail && geo.fetch.state !== 'fetched' ? ` · elements ${geo.fetch.state}: ${geo.fetch.detail}` : '');
+    $('gen').textContent = `computed ${hhmm(new Date(Date.parse(geo.generated)))}`;
+    const kel = $('keps');
+    if (geo.tle_oldest_epoch) {
+      const age = (Date.now() - Date.parse(geo.tle_oldest_epoch)) / 86400e3;
+      kel.textContent = `keps ${age < 1 ? Math.round(age * 24) + ' h' : age.toFixed(1) + ' d'} old`;
+      // Looser than the pass view: a parked bird drifts far less than a LEO.
+      kel.className = 'tag ' + (age > 30 ? 'bad' : age > 14 ? 'warn' : 'ok');
+      kel.title = `oldest element set among the geostationary birds: ${geo.tle_oldest_epoch}`;
+    }
+    renderGeoCard();
+  }
+
+  function renderGeoCard() {
+    const card = $('geocard');
+    const s = geo && geo.sats ? geo.sats.find((x) => x.name === geoSel) : null;
+    if (!s) { card.hidden = true; return; }
+    const wander = s.steady
+      ? `<p>Fixed for practical purposes: it stays within half a degree all day, so point once and lock the dish.</p>`
+      : `<p class="warnp">This one wanders (orbit inclined ${s.inclination_deg.toFixed(1)}°): over a day its elevation runs
+         ${s.el_min.toFixed(1)}° to ${s.el_max.toFixed(1)}° and its azimuth moves up to ${s.az_swing.toFixed(1)}° either side.
+         A fixed dish will lose it for part of the day unless its beam is wider than that.</p>`;
+    const vis = s.visible
+      ? (s.always_visible ? '' : `<p class="warnp">In view now, but it dips below your ${geo.min_elevation_deg}° limit for part of the day.</p>`)
+      : `<p class="warnp">${s.above_horizon ? `Only ${s.el.toFixed(1)}° up, below your ${geo.min_elevation_deg}° limit.` : 'Below the horizon from here: it cannot be received at this location.'}</p>`;
+    const dls = (s.downlinks || []).length
+      ? `<div class="dls">` + s.downlinks.map((d) =>
+          `<div><b>${Number(d.mhz).toFixed(1)} MHz<span>${esc(d.name)}</span></b><span>${esc(d.what || '')}</span></div>`).join('') + `</div>`
+      : `<p>No downlink details are recorded for this satellite. It is listed because its orbit says it is geostationary; whether it has a direct broadcast you can receive is not known here.</p>`;
+    card.innerHTML = `<div class="card">
+      <h2>${esc(s.display)} <small>${esc(s.role || 'no role recorded')} · NORAD ${s.norad}</small></h2>
+      <div class="nums">
+        <div class="num"><span>Azimuth</span><b>${s.az.toFixed(1)}°</b><i>true, not magnetic</i></div>
+        <div class="num"><span>Elevation</span><b>${s.el.toFixed(1)}°</b><i>above the horizon</i></div>
+        <div class="num"><span>Slot</span><b>${esc(s.slot)}</b><i>over the equator</i></div>
+        <div class="num"><span>Range</span><b>${Math.round(s.range_km).toLocaleString()} km</b><i>${s.path_loss_db ? 'path loss ' + s.path_loss_db + ' dB' : '&nbsp;'}</i></div>
+      </div>
+      ${vis}${wander}${dls}
+      ${s.note ? `<p>${esc(s.note)}</p>` : ''}
+      <div class="srcline">${s.source ? esc(s.source) + ' · ' : ''}elements from ${esc(s.epoch)}</div>
+    </div>`;
+    card.hidden = false;
+  }
+
+  async function loadGeo() {
+    if (view !== 'geo') return;
+    try {
+      const r = await fetch('/api/geo' + (geoGrid ? `?grid=${encodeURIComponent(geoGrid)}` : ''), {cache: 'no-store'});
+      const text = await r.text();
+      try { geo = JSON.parse(text); } catch (e) { geo = {error: `HTTP ${r.status} ${r.statusText} (not JSON)`}; }
+      if (!r.ok && !geo.error) geo = {error: `HTTP ${r.status}`};
+    } catch (e) { geo = {error: String(e)}; }
+    renderGeo();
   }
 
   function esc(s) { return String(s).replace(/[&<>"]/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
@@ -316,6 +488,7 @@ details summary{cursor:pointer}
   let sourceHealth = '';
   function renderKeps() {
     const el = $('keps');
+    if (view !== 'passes') return;
     if (!data || data.error || !data.tle_newest_epoch) { el.textContent = 'keps: unknown'; el.className = 'tag bad'; return; }
     const age = (Date.now() - Date.parse(data.tle_newest_epoch)) / 86400e3;
     const ageTxt = age < 1 ? `${Math.round(age * 24)} h` : `${age.toFixed(1)} d`;
@@ -345,8 +518,12 @@ details summary{cursor:pointer}
 
   setInterval(() => { $('clock').textContent = `${hhmm(new Date())} local · ${hhmmZ(new Date())}`; render(); }, 1000);
   setInterval(loadPasses, 60e3);
+  setInterval(loadGeo, 300e3);
+  $('vpass').addEventListener('click', () => { view = 'passes'; applyView(); });
+  $('vgeo').addEventListener('click', () => { view = 'geo'; applyView(); });
   setInterval(loadKeps, 600e3);
   loadPasses(); loadKeps();
+  if (view === 'geo') applyView();
 })();
 </script>
 </body>

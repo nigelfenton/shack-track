@@ -17,6 +17,9 @@ import passes as engine
 HERE = Path(__file__).resolve().parent
 CFG = engine.load_config(HERE / "satellites.json")
 TLE = HERE / "amateur.tle"
+# The weather birds (Meteor-M) are not in the amateur file; the server merges
+# weather.tle in the same way.
+engine.EXTRA_TLES = [HERE / "test-fixtures" / "weather-2026-11-16.tle"]
 
 # A fixed instant a day after the checked-in elements, so SGP4 is well inside
 # its accuracy and the answers do not drift with the wall clock.

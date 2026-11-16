@@ -51,6 +51,7 @@ from pathlib import Path
 
 from flask import Flask, jsonify, request, send_from_directory
 
+import geo
 import passes as engine
 from tracker import Tracker
 
@@ -58,10 +59,17 @@ HERE = Path(__file__).resolve().parent
 TLE = Path(os.environ.get("SHACKTRACK_TLE", HERE / "amateur.tle"))
 SATS = Path(os.environ.get("SHACKTRACK_SATS", HERE / "satellites.json"))
 KEPS = os.environ.get("SHACKTRACK_KEPS", str(HERE / "keps-watch.py"))
+# Weather elements (Celestrak's `weather` group). Kept beside the amateur file
+# and fetched by this server itself, at most twice a day: it feeds the
+# geostationary list and lets the Meteor birds sit in the ordinary pass list.
+WX_TLE = Path(os.environ.get("SHACKTRACK_WX_TLE", TLE.parent / "weather.tle"))
+GEO_NOTES = Path(os.environ.get("SHACKTRACK_GEO", HERE / "geo-satellites.json"))
+engine.EXTRA_TLES = [WX_TLE]
 PORT = int(os.environ.get("SHACKTRACK_PORT", "8781"))
 BIND = os.environ.get("SHACKTRACK_BIND", "127.0.0.1")
 
 PASS_TTL_S = 60
+GEO_TTL_S = 300        # a geostationary bird moves a fraction of a degree a day
 KEPS_TTL_S = 600
 LIVE_TTL_S = 0.9       # the view polls at 1 Hz; never serve two callers two computes
 RADIO_TTL_S = 0.9
@@ -293,6 +301,59 @@ def api_passes_grid():
         app.logger.exception("pass engine failed for grid %s", grid)
         return jsonify({"error": "pass engine failed: %s" % type(e).__name__}), 500
     return jsonify(result)
+
+
+_wx_last: dict = {"state": "unknown", "detail": ""}
+
+
+def _wx_refresh(wait: bool) -> dict:
+    """Keep weather.tle fresh without ever making a pass request wait on the
+    internet. With the file present the fetch runs in the background and the
+    current file is used; only a MISSING file is worth blocking for."""
+    global _wx_last
+    if wait or not WX_TLE.exists():
+        _wx_last = geo.ensure_tle(WX_TLE)
+        return _wx_last
+    if time.time() - WX_TLE.stat().st_mtime >= geo.REFRESH_AFTER_S:
+        def run():
+            global _wx_last
+            _wx_last = geo.ensure_tle(WX_TLE)
+        threading.Thread(target=run, name="wx-tle", daemon=True).start()
+    return _wx_last
+
+
+@app.get("/api/geo")
+def api_geo():
+    """Geostationary weather satellites from the station's QTH, or from ?grid=.
+
+    Public like the pass list: it is ephemeris for a location, reads nothing
+    from the radio and commands nothing. These birds have no passes, so this
+    is where to point and whether it is above the local horizon limit."""
+    grid = (request.args.get("grid") or "").strip()
+    try:
+        cfg = _grid_cfg(grid) if grid else engine.load_config(SATS)
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
+    except OSError as e:
+        return jsonify({"error": f"cannot read the station file: {e}"}), 503
+    fetch = _wx_refresh(wait=False)
+    if not WX_TLE.exists():
+        return jsonify({"error": "no weather elements yet: " + (fetch.get("detail") or "fetch failed"),
+                        "tle_file": str(WX_TLE)}), 503
+    def build():
+        return geo.compute(cfg["qth"], cfg.get("min_elevation_deg", 5.0),
+                           WX_TLE, geo.load_notes(GEO_NOTES))
+    try:
+        # A visitor's grid is computed fresh each time: it costs milliseconds,
+        # and a cache keyed on a parameter a stranger controls needs a bound
+        # (see GRID_CACHE_MAX) that this does not need to carry.
+        result = build() if grid else _cached("geo", GEO_TTL_S, build, max_stale=3600)
+    except (OSError, ValueError) as e:
+        return jsonify({"error": f"geo list cannot read its inputs: {e}"}), 503
+    except Exception as e:  # noqa: BLE001
+        app.logger.exception("geo list failed")
+        return jsonify({"error": f"geo list failed: {type(e).__name__}: {e}"}), 500
+    return jsonify(dict(result, fetch=fetch))
 
 
 def _export_passes():
@@ -787,6 +848,7 @@ if __name__ == "__main__":
         except Exception as e:  # noqa: BLE001
             print("shack-track: warm-up failed: %s" % e, file=sys.stderr)
     threading.Thread(target=warm, name="warm", daemon=True).start()
+    threading.Thread(target=lambda: _wx_refresh(wait=True), name="wx-tle", daemon=True).start()
     # Re-engage whatever was engaged before the restart, once the cache is warm
     # enough to answer. This is what makes an overnight run survive a reboot.
     def resume():
