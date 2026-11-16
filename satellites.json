@@ -195,6 +195,7 @@
       "tle": "METEOR-M2 3",
       "display": "Meteor M2-3",
       "mode": "LRPT 137.900 · rx only",
+      "rx_khz": 137900,
       "note": "Weather imagery, LRPT 80 kbps OQPSK on 137.900 MHz (137.100 is its alternate). Receive only, and outside the IC-9700's range: use an RTL-SDR with a 137 MHz antenna and SatDump. No downlink is listed here on purpose, so the tracker never tries to tune a ham radio to it. The operator changes frequency and mode without notice.",
       "source": "WMO OSCAR and SatNOGS, checked 2026-11-16; no 2026 operator statement found"
     },
@@ -203,6 +204,7 @@
       "tle": "METEOR-M2 4",
       "display": "Meteor M2-4",
       "mode": "LRPT 137.900 · rx only",
+      "rx_khz": 137900,
       "note": "Weather imagery, LRPT on 137.900 MHz (has also used 137.100, and 72k as well as 80k mode). Receive only, and outside the IC-9700's range: use an RTL-SDR with a 137 MHz antenna and SatDump. No downlink is listed here on purpose, so the tracker never tries to tune a ham radio to it.",
       "source": "WMO OSCAR and SatNOGS, checked 2026-11-16; no 2026 operator statement found"
     }

@@ -70,6 +70,14 @@ body{margin:0;background:var(--ground);color:var(--ink);font-family:"Source Sans
 .track[data-on="1"]{color:var(--ground);background:var(--live);border-color:var(--live);font-weight:700}
 .track[data-on="1"]:hover{color:var(--ground)}
 .track[disabled]{cursor:not-allowed;opacity:.45}
+/* Which radio Track drives. Only shown when the station has a second receiver. */
+.target{all:unset;cursor:pointer;font-family:"JetBrains Mono",ui-monospace,monospace;font-size:.66rem;
+  letter-spacing:.08em;text-transform:uppercase;color:var(--label);border:1px solid var(--edge);
+  border-radius:999px;padding:3px 10px}
+.target:hover{color:var(--ink-2);border-color:var(--ink-2)}
+.target:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.target[disabled]{cursor:not-allowed;opacity:.6}
+[hidden]{display:none!important}
 .tracknote{font-family:"JetBrains Mono",ui-monospace,monospace;font-size:.66rem;color:var(--label)}
 .tracknote.bad{color:var(--los)} .tracknote.good{color:var(--live)} .tracknote.warn{color:var(--soon)}
 .ladder{display:flex;align-items:flex-end;gap:3px;height:38px;margin-top:2px;width:100%}
@@ -162,10 +170,13 @@ footer a{color:inherit}
         <span class="pill" id="state">…</span>
         <span class="pill mode" id="mode"></span>
         <button class="track" id="track" data-on="0" title="Track this bird: stays engaged across LOS and restarts until pressed again">Track</button>
+        <button class="target" id="target" type="button" hidden
+                title="Which radio Track tunes. Press to switch."></button>
         <span class="tracknote" id="tracknote"></span>
         <span class="tos" id="tos"></span>
       </div>
       <div class="row"><span class="k">Radio</span><span class="v" id="radio-v">…</span><span class="d" id="radio-d"></span></div>
+      <div class="row" id="rx-row" hidden><span class="k">Receiver</span><span class="v" id="rx-v">…</span><span class="d" id="rx-d"></span></div>
       <div class="row"><span class="k">Downlink</span><span class="v" id="dn-v">…</span><span class="d" id="dn-d"></span></div>
       <div class="row"><span class="k">Uplink</span><span class="v" id="up-v">…</span><span class="d" id="up-d"></span></div>
       <div class="row"><span class="k">Az / El</span><span class="v" id="azel-v">…</span><span class="d" id="azel-d"></span></div>
@@ -375,17 +386,26 @@ footer a{color:inherit}
   // Engage is a toggle. Pressing it says "work this bird" and the server keeps
   // that instruction across LOS, a restart, and the radio going away.
   let trackBusy = false;
+  // Which radio Track drives. Remembered per browser; the server is the
+  // authority once engaged, and refuses "receiver" when none is set up.
+  let trackTarget = 'radio';
+  try { if (localStorage.getItem('st.target') === 'receiver') trackTarget = 'receiver'; } catch (e) {}
+  $('target').addEventListener('click', () => {
+    trackTarget = trackTarget === 'radio' ? 'receiver' : 'radio';
+    try { localStorage.setItem('st.target', trackTarget); } catch (e) {}
+    if (data) paintTrack(data);
+  });
   $('track').addEventListener('click', async () => {
     if (trackBusy || !data || !data.pass) return;
     trackBusy = true;
     const on = $('track').dataset.on === '1';
-    const body = on ? {engage: false} : {engage: true, sat: data.pass.sat};
+    const body = on ? {engage: false} : {engage: true, sat: data.pass.sat, target: trackTarget};
     try {
       const r = await fetch('/api/track', {
         method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body)});
       const out = await r.json();
       if (!out.ok) { logit(`track refused: ${out.error}`, 'bad'); $('tracknote').textContent = out.error; $('tracknote').className = 'tracknote bad'; }
-      else logit(on ? `disengaged from ${data.pass.sat}` : `engaged on ${data.pass.sat} - tracking every pass until turned off`, on ? 'warn' : 'good');
+      else logit(on ? `disengaged from ${data.pass.sat}` : `engaged on ${data.pass.sat} (${trackTarget}) - tracking every pass until turned off`, on ? 'warn' : 'good');
     } catch (e) { logit(`track request failed: ${e}`, 'bad'); }
     trackBusy = false;
     load();
@@ -393,6 +413,15 @@ footer a{color:inherit}
 
   function paintTrack(data) {
     const t = data.tracker || {}, btn = $('track'), note = $('tracknote');
+    // The target chip: hidden without a second receiver; while engaged it
+    // shows what the SERVER is driving and cannot be changed.
+    const hasRx = !!(data.receiver && data.receiver.configured), tb = $('target');
+    if (!hasRx && !(t.engaged && t.target === 'receiver')) { tb.hidden = true; if (!t.engaged) trackTarget = 'radio'; }
+    else {
+      const shown = t.engaged ? (t.target || 'radio') : trackTarget;
+      tb.hidden = false; tb.disabled = !!t.engaged;
+      tb.textContent = 'on: ' + shown;
+    }
     if (t.enabled === false) { btn.disabled = true; btn.textContent = 'Track'; note.textContent = 'disabled on this server'; note.className = 'tracknote'; return; }
     const p = data.pass || {};
     const onThis = t.engaged && t.sat === p.sat;
@@ -449,8 +478,9 @@ footer a{color:inherit}
 
       const rr = g.range_rate_kms;
       const dir = rr < -0.05 ? 'approaching' : rr > 0.05 ? 'receding' : 'at TCA';
-      setRow('dn', data.downlink ? `${mhz(data.downlink.hz)}<small>MHz ${p.mode.split(' ')[0]}</small>` : '—',
-             data.downlink ? `${data.downlink.shift_hz >= 0 ? '+' : ''}${data.downlink.shift_hz} Hz · ${dir}` : 'no downlink listed', '', 'dim');
+      const dnl = data.downlink || data.rx, rxOnly = !data.downlink && !!data.rx;
+      setRow('dn', dnl ? `${mhz(dnl.hz)}<small>MHz ${p.mode.split(' ')[0]}</small>` : '—',
+             dnl ? `${dnl.shift_hz >= 0 ? '+' : ''}${dnl.shift_hz} Hz · ${dir}${rxOnly ? ' · receiver only' : ''}` : 'no downlink listed', '', 'dim');
       // Uplink is COMPUTED ONLY. rigctl exposes one slice (Main), and the
       // IC-9700's Sub receiver has no non-mutating read (AetherSDR #5348), so
       // nothing here confirms what the transmit side is actually on. Say so,
@@ -492,6 +522,24 @@ footer a{color:inherit}
         : `${delta > 0 ? '+' : ''}${delta} Hz off downlink`;
       setRow('radio', `${mhz(r.hz)}<small>MHz ${r.mode || ''}</small>`, verdict,
              '', delta === null ? 'dim' : agree ? '' : far ? 'dim' : 'warn');
+    }
+    // Receiver row: only when the station has one; judged against the
+    // frequency a receiver would be sent (rx, else the downlink).
+    const x = data.receiver || {};
+    $('rx-row').hidden = !x.configured;
+    if (x.configured) {
+      if (!x.reachable) {
+        setRow('rx', 'not reachable', `rigctl ${x.target || ''}${x.error ? ' · ' + x.error : ''}`, 'bad', 'bad');
+      } else {
+        const want = data.rx || data.downlink, dlt = want ? x.hz - want.hz : null;
+        const ok = dlt !== null && Math.abs(dlt) <= 50, away = dlt !== null && Math.abs(dlt) > 1e6;
+        setRow('rx', `${mhz(x.hz)}<small>MHz ${x.mode || ''}</small>`,
+               dlt === null ? 'rigctl f' : ok ? `matches ±${Math.abs(dlt)} Hz`
+                 : away ? `not on this bird · ${(Math.abs(dlt) / 1e6).toFixed(1)} MHz away`
+                 : `${dlt > 0 ? '+' : ''}${dlt} Hz off`,
+               '', dlt === null ? 'dim' : ok ? '' : away ? 'dim' : 'warn');
+      }
+      if (now - fetchedAt > 5000) setRow('rx', 'stale', `last update ${hhmm(new Date(fetchedAt))}`, 'bad', 'bad');
     }
     if (now - fetchedAt > 5000) setRow('radio', 'stale', `last update ${hhmm(new Date(fetchedAt))}`, 'bad', 'bad');
     $('src').textContent = `Skyfield · newest TLE epoch ${data.tle_newest_epoch || '?'} · ${data.qth ? data.qth.name : ''}`;

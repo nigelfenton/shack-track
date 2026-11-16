@@ -28,6 +28,19 @@ commanded, that is a hand on the dial and we keep it for the rest of the pass.
 RECEIVE ONLY. The verbs sent are `t` (read PTT), `f` (read frequency), `M`
 (set receive mode, once per pass) and `F` (set frequency). Nothing here can
 key a transmitter, and every write is gated on PTT reading 0.
+
+TWO RADIOS, ONE ENGAGEMENT (2026-11-16). The station can have a second,
+receive-only target -- an RTL-SDR behind AetherSDR or SDR++, both of which
+speak rigctl. An engagement names which one it drives: "radio" (the
+transceiver) or "receiver". They differ in exactly two ways:
+
+  * The receiver may be sent a bird's `rx_khz` -- a frequency listed for
+    receive-only use, like the Meteor weather birds on 137 MHz. The transceiver
+    is only ever sent `downlink_khz`, so a ham radio is never told to go
+    somewhere it cannot.
+  * An SDR program may not implement `t` at all and answers RPRT. On the
+    receiver that counts as "not transmitting". On the transceiver it never
+    does: there, anything but a clean 0 holds the write.
 """
 
 from __future__ import annotations
@@ -44,6 +57,9 @@ STEP_HZ = 20           # do not re-send for less than this
 TICK_S = 1.0
 IDLE_TICK_S = 15.0     # between passes there is nothing to do; look less often
 LOG_MAX = 400
+
+
+TARGETS = ("radio", "receiver")
 
 
 def _now_iso() -> str:
@@ -73,10 +89,13 @@ def rx_mode_for(down_mode):
 class Tracker:
     """One standing engagement. Owns the only thread that writes to the radio."""
 
-    def __init__(self, state_path: Path, live_fn, rigctl_fn):
+    def __init__(self, state_path: Path, live_fn, rigctl_fn, receiver_fn=None):
         self._path = Path(state_path)
         self._live = live_fn          # () -> live_state dict for the engaged sat
-        self._rig = rigctl_fn         # (bytes) -> str | None
+        # (bytes) -> str | None, one per target. `receiver` is None when the
+        # station has no second radio.
+        self._rigs = {"radio": rigctl_fn, "receiver": receiver_fn}
+        self.target = "radio"
 
         self._lock = threading.RLock()
         self._log: list[dict] = []
@@ -99,13 +118,17 @@ class Tracker:
             return
         if d.get("sat"):
             self.offset = int(d.get("offset", 0))
-            self.logit(f"restart: re-engaging {d['sat']} (offset {self.offset:+d} Hz)")
-            self.engage(d["sat"], offset=self.offset, _restoring=True)
+            # A state file from before there were two radios has no target.
+            target = d.get("target") if d.get("target") in TARGETS else "radio"
+            self.logit(f"restart: re-engaging {d['sat']} on the {target} "
+                       f"(offset {self.offset:+d} Hz)")
+            self.engage(d["sat"], offset=self.offset, target=target, _restoring=True)
 
     def _save(self) -> None:
         try:
             self._path.write_text(json.dumps(
-                {"sat": self.sat, "offset": self.offset, "saved": _now_iso()}), encoding="utf-8")
+                {"sat": self.sat, "offset": self.offset, "target": self.target,
+                 "saved": _now_iso()}), encoding="utf-8")
         except OSError as e:
             self.logit(f"could not save tracker state: {e}", "bad")
 
@@ -121,12 +144,19 @@ class Tracker:
             return list(self._log)
 
     # ---- engage / disengage ----------------------------------------------
-    def engage(self, sat: str, offset: int = 0, _restoring: bool = False) -> dict:
+    def engage(self, sat: str, offset: int = 0, target: str = "radio",
+               _restoring: bool = False) -> dict:
         with self._lock:
-            if self.sat and self.sat != sat:
-                return {"ok": False, "error": f"already engaged on {self.sat}; disengage first"}
+            if target not in TARGETS:
+                return {"ok": False, "error": f"unknown target {target!r}"}
+            if self._rigs.get(target) is None:
+                return {"ok": False, "error": "no receiver is set up on this station"}
+            if self.sat and (self.sat != sat or self.target != target):
+                return {"ok": False, "error": f"already engaged on {self.sat} "
+                                              f"({self.target}); disengage first"}
             if self.sat == sat:
                 return self.status()
+            self.target = target
             # One driver only: if the radio is already being stepped by something
             # else, say so rather than racing it.
             other = self._detect_other_driver()
@@ -144,7 +174,8 @@ class Tracker:
             self._thread.start()
             self._save()
             if not _restoring:
-                self.logit(f"ENGAGED on {sat} - will track every pass until disengaged", "good")
+                self.logit(f"ENGAGED on {sat} ({target}) - will track every pass "
+                           f"until disengaged", "good")
             return self.status()
 
     def disengage(self) -> dict:
@@ -176,6 +207,11 @@ class Tracker:
                 f"({a} -> {b} Hz in 1 s); disengage it first")
 
     # ---- radio ------------------------------------------------------------
+    def _rig(self, cmd: bytes):
+        """One round trip to whichever radio this engagement drives."""
+        fn = self._rigs.get(self.target)
+        return fn(cmd) if fn else None
+
     def _read_hz(self) -> int | None:
         r = self._rig(b"f")
         try:
@@ -216,9 +252,11 @@ class Tracker:
             self.mode_set_for = None
             return IDLE_TICK_S if (secs or 0) > 120 else TICK_S
 
-        dn = d.get("downlink")
+        # The receiver may use a receive-only frequency; the transceiver may not.
+        dn = (d.get("rx") or d.get("downlink")) if self.target == "receiver" else d.get("downlink")
         if not dn:
-            self._set_state("waiting", "this bird has no downlink listed")
+            self._set_state("waiting", "this bird has no downlink listed"
+                            if self.target == "radio" else "this bird has no frequency listed")
             return IDLE_TICK_S
 
         # PTT gate: never write while the radio says it is transmitting.
@@ -227,7 +265,8 @@ class Tracker:
             self._set_state("idle-no-radio", "radio not reachable")
             self.last_sent = None
             return TICK_S
-        if not ptt.startswith("0"):
+        clear = ptt.startswith("0") or (self.target == "receiver" and ptt.startswith("RPRT"))
+        if not clear:
             self._set_state("holding", "radio is transmitting; not touching it")
             return TICK_S
 
@@ -282,5 +321,6 @@ class Tracker:
     def status(self) -> dict:
         with self._lock:
             return {"ok": True, "engaged": self.sat is not None, "sat": self.sat,
+                    "target": self.target,
                     "state": self.state, "detail": self.detail,
                     "offset_hz": self.offset, "last_sent_hz": self.last_sent}

@@ -5,3 +5,4 @@ satellites.local.json
 de421.bsp
 weather.tle
 run_local_preview.py
+tracker-state.local.json

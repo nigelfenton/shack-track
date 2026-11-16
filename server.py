@@ -102,6 +102,11 @@ RIGCTL_TIMEOUT_S = 0.7
 # setup page) wins, so the radio can be re-pointed without editing the unit.
 RIGCTL = os.environ.get("SHACKTRACK_RIGCTL", "10.0.0.104:4532")
 
+# A second, RECEIVE-ONLY radio: an RTL-SDR behind AetherSDR or SDR++, both of
+# which speak rigctl. There is no default -- most stations have none -- and
+# like RIGCTL a "receiver" key saved by the setup page wins.
+RECEIVER = os.environ.get("SHACKTRACK_RECEIVER", "")
+
 # Where the standing engagement is remembered across a restart. An unattended
 # overnight capture must not end because the hub rebooted.
 TRACK_STATE = Path(os.environ.get("SHACKTRACK_STATE", HERE / "tracker-state.json"))
@@ -528,6 +533,27 @@ def _rigctl_target() -> str:
     return saved if isinstance(saved, str) and saved else RIGCTL
 
 
+def _receiver_target() -> str:
+    """The second, receive-only radio, or '' when the station has none."""
+    try:
+        saved = engine.load_config(SATS).get("receiver")
+    except (OSError, ValueError):
+        saved = None
+    return saved if isinstance(saved, str) and saved else RECEIVER
+
+
+def _receiver(cmd: bytes) -> str | None:
+    target = _receiver_target()
+    return _rigctl_at(target, cmd) if target else None
+
+
+def _read_receiver() -> dict:
+    target = _receiver_target()
+    if not target:
+        return {"configured": False}
+    return dict(_read_radio_at(target), configured=True)
+
+
 def _rigctl_at(target: str, cmd: bytes) -> str | None:
     host, _, port = target.rpartition(":")
     try:
@@ -597,6 +623,7 @@ def api_live():
     radio = _cached("radio", RADIO_TTL_S, _read_radio)
     out = dict(state)
     out["radio"] = radio
+    out["receiver"] = _cached("receiver", RADIO_TTL_S, _read_receiver)
     out["rotor"] = {"present": False}
     tr = tracker.status()
     tr["enabled"] = TRACK_ENABLED
@@ -618,7 +645,7 @@ def _live_for(sat: str) -> dict:
         return {"error": f"{type(e).__name__}: {e}"}
 
 
-tracker = Tracker(TRACK_STATE, _live_for, _rigctl)
+tracker = Tracker(TRACK_STATE, _live_for, _rigctl, _receiver)
 
 
 @app.get("/api/track")
@@ -640,7 +667,13 @@ def api_track_set():
         sat = (body.get("sat") or "").strip()
         if not sat:
             return jsonify({"ok": False, "error": "sat is required"}), 400
-        out = tracker.engage(sat, offset=int(body.get("offset", 0)))
+        target = (body.get("target") or "radio").strip()
+        if target not in ("radio", "receiver"):
+            return jsonify({"ok": False, "error": "target is 'radio' or 'receiver'"}), 400
+        if target == "receiver" and not _receiver_target():
+            return jsonify({"ok": False,
+                            "error": "No receiver is set up. Add one on the setup page."}), 409
+        out = tracker.engage(sat, offset=int(body.get("offset", 0)), target=target)
         return jsonify(out), (200 if out.get("ok") else 409)
     return jsonify(tracker.disengage())
 
@@ -715,7 +748,23 @@ def validate_setup(body: dict) -> dict:
         out["min_elevation_deg"] = round(minel, 1)
     if "rigctl" in body:
         out["rigctl"] = _parse_rigctl(body.get("rigctl"))
+    if "receiver" in body:
+        try:
+            out["receiver"] = _parse_rigctl(body.get("receiver"))
+        except ValueError as e:
+            raise ValueError(str(e).replace("radio", "receiver")) from None
+        radio = out.get("rigctl") if "rigctl" in out else None
+        if out["receiver"] and out["receiver"] == (radio or _rigctl_target()):
+            # Same address twice would let the receiver's looser rules (a
+            # receive-only frequency, RPRT accepted for PTT) reach the
+            # transceiver through the back door.
+            raise ValueError("The receiver cannot be the same address as the radio.")
     return out
+
+
+def _receiver_target_from(cfg: dict) -> str:
+    saved = cfg.get("receiver")
+    return saved if isinstance(saved, str) and saved else RECEIVER
 
 
 def _setup_view(cfg: dict) -> dict:
@@ -724,6 +773,7 @@ def _setup_view(cfg: dict) -> dict:
     view = {"qth": dict(q), "min_elevation_deg": cfg.get("min_elevation_deg"),
             "rigctl": {"target": saved or RIGCTL, "source": "setup" if saved else "default",
                        "default": RIGCTL},
+            "receiver": {"target": _receiver_target_from(cfg)},
             "sats_file": str(SATS)}
     try:
         view["qth"]["grid"] = engine.maidenhead(float(q["lat"]), float(q["lon"])).upper()
@@ -752,6 +802,11 @@ def save_setup(changes: dict) -> dict:
                 raw["rigctl"] = changes["rigctl"]
             else:
                 raw.pop("rigctl", None)
+        if "receiver" in changes:
+            if changes["receiver"]:
+                raw["receiver"] = changes["receiver"]
+            else:
+                raw.pop("receiver", None)
         tmp = SATS.with_name(SATS.name + ".tmp")
         tmp.write_text(json.dumps(raw, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
         if SATS.exists():

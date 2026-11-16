@@ -91,6 +91,17 @@ nav a{color:var(--track);margin-right:14px;font-size:.9rem}
     <p class="hint">AetherSDR's rigctl server is on port 4532. The test only reads frequency and mode. Clear the field and save to go back to the default.</p>
   </section>
 
+  <section class="card" aria-labelledby="rx-h">
+    <h2 id="rx-h">Receiver (optional)</h2>
+    <p class="now" id="rx-now">Loading…</p>
+    <label>rigctl address (host:port) <input id="receiver" placeholder="192.168.0.36:4533" autocomplete="off"></label>
+    <div class="btns">
+      <button type="button" id="rxtest">Test receiver</button>
+      <span class="msg" id="rxtest-msg" role="status"></span>
+    </div>
+    <p class="hint">A second, receive-only radio, such as an RTL-SDR running in AetherSDR or SDR++ with its rigctl server switched on. Tracking can then be sent here instead of the radio, including weather satellites the radio cannot tune. It must be a different address from the radio. Clear the field and save to remove it.</p>
+  </section>
+
   <div class="btns">
     <button type="button" class="primary" id="save">Save</button>
     <span class="msg" id="save-msg" role="status"></span>
@@ -113,6 +124,9 @@ function render(v) {
   $("alt").value = q.alt_m ?? "";
   $("minel").value = v.min_elevation_deg ?? "";
   $("rigctl").value = r.source === "setup" ? r.target : "";
+  const rx = (v.receiver || {}).target || "";
+  $("rx-now").textContent = rx ? "Now: " + rx : "Now: none";
+  $("receiver").value = rx;
   $("grid").value = ""; $("lat").value = ""; $("lon").value = "";
 }
 
@@ -136,8 +150,22 @@ $("test").onclick = async () => {
   } catch (e) { say($("test-msg"), "Test failed: " + e.message, "bad"); }
 };
 
+$("rxtest").onclick = async () => {
+  const addr = $("receiver").value.trim();
+  // An empty field must not fall through to testing the main radio.
+  if (!addr) { say($("rxtest-msg"), "Enter the receiver's address first.", "bad"); return; }
+  say($("rxtest-msg"), "Testing…");
+  try {
+    const r = await fetch("/api/setup/radio-test", {method: "POST",
+      headers: {"Content-Type": "application/json"}, body: JSON.stringify({rigctl: addr})});
+    const v = await r.json();
+    if (v.reachable) say($("rxtest-msg"), "Reached " + v.target + ": " + (v.hz / 1e6).toFixed(6) + " MHz " + (v.mode || ""), "ok");
+    else say($("rxtest-msg"), (v.error || ("No answer from " + v.target)).replace("radio", "receiver"), "bad");
+  } catch (e) { say($("rxtest-msg"), "Test failed: " + e.message, "bad"); }
+};
+
 $("save").onclick = async () => {
-  const body = {rigctl: $("rigctl").value};
+  const body = {rigctl: $("rigctl").value, receiver: $("receiver").value};
   for (const [id, key] of [["grid","grid"],["lat","lat"],["lon","lon"],["alt","alt_m"],["minel","min_elevation_deg"]]) {
     const val = $(id).value.trim();
     if (val !== "") body[key] = val;

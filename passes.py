@@ -437,6 +437,8 @@ def live_state(cfg: dict, tle_path: Path, now: datetime | None = None,
         "bird": bird(sat, site, t, downlink_hz=dn or None),
         "uplink": doppler(up, g["range_rate_kms"], uplink=True),
         "downlink": doppler(dn, g["range_rate_kms"], uplink=False),
+        "rx": doppler((chosen.get("rx_khz") or 0) * 1000 or dn,
+                      g["range_rate_kms"], uplink=False),
         "seconds_to_aos": int(round((datetime.fromisoformat(chosen["aos"].replace("Z", "+00:00")) - now).total_seconds())),
         "seconds_to_los": int(round((datetime.fromisoformat(chosen["los"].replace("Z", "+00:00")) - now).total_seconds())),
     })
@@ -470,6 +472,9 @@ def compute(cfg: dict, tle_path: Path, hours: float, min_el: float | None = None
                 "tle_name": name,
                 "mode": s.get("mode", ""),
                 "uplink_khz": s.get("uplink_khz"), "downlink_khz": s.get("downlink_khz"),
+                # Receive-only frequency, for a bird no transceiver here can
+                # tune. Only ever offered to the station's second receiver.
+                "rx_khz": s.get("rx_khz"),
                 "xpdr": s.get("xpdr"), "note": s.get("note", ""),
                 "down_mode": s.get("down_mode"), "up_mode": s.get("up_mode"),
                 "source": s.get("source", ""),
