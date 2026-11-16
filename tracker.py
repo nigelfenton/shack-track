@@ -50,15 +50,33 @@ def _now_iso() -> str:
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
 
 
+# What to ask the radio for, per downlink mode in the satellite table. The
+# tracker used to send "M USB 2400" for every bird, which put the radio in USB
+# on an FM pass (ISS, 2026-11-16: 20 s of USB at AOS until the operator fixed
+# it). PKT is AFSK/FSK packet, which is received in FM.
+RX_MODES = {
+    "USB": ("USB", 2400),
+    "LSB": ("LSB", 2400),
+    "CW":  ("CW", 500),
+    "FM":  ("FM", 15000),
+    "PKT": ("FM", 15000),
+}
+
+
+def rx_mode_for(down_mode):
+    """(rigctl mode, passband Hz) for a satellite's downlink mode, or None when
+    the table does not name one we know. None means LEAVE THE RADIO'S MODE ALONE:
+    a wrong mode is worse than the operator's own."""
+    return RX_MODES.get((down_mode or "").strip().upper())
+
+
 class Tracker:
     """One standing engagement. Owns the only thread that writes to the radio."""
 
-    def __init__(self, state_path: Path, live_fn, rigctl_fn, mode: str = "USB",
-                 passband: int = 2400):
+    def __init__(self, state_path: Path, live_fn, rigctl_fn):
         self._path = Path(state_path)
         self._live = live_fn          # () -> live_state dict for the engaged sat
         self._rig = rigctl_fn         # (bytes) -> str | None
-        self._mode, self._passband = mode, passband
 
         self._lock = threading.RLock()
         self._log: list[dict] = []
@@ -232,10 +250,16 @@ class Tracker:
                         return TICK_S
 
         if self.mode_set_for != p.get("aos"):
-            self._rig(f"M {self._mode} {self._passband}".encode())
+            rx = rx_mode_for(p.get("down_mode"))
+            if rx:
+                self._rig(f"M {rx[0]} {rx[1]}".encode())
+                mode_note = f"{rx[0]} {rx[1]} Hz"
+            else:
+                mode_note = (f"mode left alone (downlink mode "
+                             f"{p.get('down_mode')!r} not known)")
             self.mode_set_for = p.get("aos")
             self.logit(f"{p.get('display', sat)} AOS - tracking "
-                       f"(peak {round(p.get('peak_el', 0))} deg)", "good")
+                       f"(peak {round(p.get('peak_el', 0))} deg), {mode_note}", "good")
 
         hz = dn["hz"] + self.offset
         if self.last_sent is None or abs(hz - self.last_sent) >= STEP_HZ:

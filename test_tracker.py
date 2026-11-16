@@ -10,6 +10,8 @@ cases that only exist BECAUSE of that decision:
   * it idles rather than dying when the radio disappears, and recovers
   * it refuses to engage while another driver is stepping the radio
   * it never writes while PTT is on
+  * it sets the receive mode the BIRD uses, not USB for everything (the ISS
+    pass of 2026-11-16 went to USB at AOS on an FM repeater)
 
     python test_tracker.py
 """
@@ -41,6 +43,7 @@ class FakeRadio:
         self.ptt = "0"
         self.reachable = True
         self.writes = []
+        self.modes = []
         self.lock = threading.Lock()
 
     def __call__(self, cmd: bytes):
@@ -55,7 +58,7 @@ class FakeRadio:
             if c.startswith("F "):
                 self.hz = int(c.split()[1]); self.writes.append(self.hz); return "RPRT 0"
             if c.startswith("M "):
-                return "RPRT 0"
+                self.modes.append(c[2:]); return "RPRT 0"
             return "RPRT -1"
 
 
@@ -158,6 +161,34 @@ out = tr3.engage("TEST-1")
 check("refuses to engage against another driver", out.get("ok") is False,
       out.get("error", "engaged anyway"))
 check("stays disengaged after the refusal", tr3.status()["engaged"] is False)
+
+# --- 8. the receive mode comes from the bird --------------------------------
+def mode_sent_for(down_mode):
+    """Engage a fresh tracker on a live pass whose table entry names down_mode
+    (or has none when down_mode is the sentinel ...) and return the M writes."""
+    r = FakeRadio()
+    p = {"sat": "MODE-1", "display": "MODE-1", "aos": "2026-11-16T04:38:36Z", "peak_el": 85}
+    if down_mode is not ...:
+        p["down_mode"] = down_mode
+    f = {"state": "live", "seconds_to_aos": -30, "seconds_to_los": 600, "pass": p,
+         "downlink": {"hz": 437_810_000, "shift_hz": 10_000}, "geometry": {"el": 30.0}}
+    t = T.Tracker(Path(tempfile.mkdtemp()) / "m.json", lambda sat: f, r)
+    t.engage("MODE-1")
+    time.sleep(0.8)
+    tracked = t.status()["state"] == "tracking" and bool(r.writes)
+    t.disengage()
+    return r.modes, tracked
+
+for dm, want in (("FM", ["FM 15000"]), ("USB", ["USB 2400"]), ("fm", ["FM 15000"]),
+                 ("PKT", ["FM 15000"]), ("LSB", ["LSB 2400"])):
+    got, tracked = mode_sent_for(dm)
+    check(f"down_mode {dm!r} sets the radio to {want[0]}", got == want and tracked,
+          f"mode writes {got}, tracking={tracked}")
+for dm in (..., None, "", "QPSK31"):
+    got, tracked = mode_sent_for(dm)
+    label = "missing" if dm is ... else repr(dm)
+    check(f"down_mode {label}: mode is left alone, frequency still tracked",
+          got == [] and tracked, f"mode writes {got}, tracking={tracked}")
 
 print(f"\n{len(fails)} failures")
 sys.exit(1 if fails else 0)

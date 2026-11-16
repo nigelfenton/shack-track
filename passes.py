@@ -451,6 +451,7 @@ def compute(cfg: dict, tle_path: Path, hours: float, min_el: float | None = None
                 "mode": s.get("mode", ""),
                 "uplink_khz": s.get("uplink_khz"), "downlink_khz": s.get("downlink_khz"),
                 "xpdr": s.get("xpdr"), "note": s.get("note", ""),
+                "down_mode": s.get("down_mode"), "up_mode": s.get("up_mode"),
                 "source": s.get("source", ""),
             })
             passes.append(p)
