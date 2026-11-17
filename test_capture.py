@@ -96,6 +96,9 @@ time.sleep(0.8)
 check("at AOS the receiver is told to play, then to record, once",
       rx.capture() == ["\\start", "AOS"], str(rx.capture()))
 check("and the engagement remembers a stop is owed", t.capturing is True)
+check("recording starts only after the receiver has been tuned to the bird",
+      [c for c in rx.seen if c.startswith("F ") or c == "AOS"][:2] == ["F 137902500", "AOS"],
+      str([c for c in rx.seen if c.startswith("F ") or c == "AOS"][:3]))
 now["d"] = feed(False)                                # the pass ends
 time.sleep(0.8)
 check("at LOS the receiver is told to stop recording, once",
@@ -111,6 +114,19 @@ check("the transceiver saw nothing at all", radio.seen == [], str(radio.seen[:5]
 t.disengage()
 check("disengaging mid-pass stops the recording", rx.capture()[-1] == "LOS" and t.capturing is False,
       str(rx.capture()))
+
+def slow(sat):                                        # a tick caught mid-flight
+    time.sleep(0.4)
+    return feed(True)
+
+
+t = T.Tracker(tmpstate(), slow, Fake(), Fake())
+t.engage("METEOR-M2-3", target="receiver")
+time.sleep(0.1)
+t.disengage()                                         # ...while that tick is still running
+time.sleep(0.8)
+check("after disengaging the state reads off, never a late 'tracking'",
+      t.status()["state"] == "off", str(t.status()))
 
 # --- 3. the transceiver is never sent capture verbs ------------------------------
 radio, rx = Fake(435_640_000, ptt="0"), Fake()

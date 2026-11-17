@@ -336,7 +336,8 @@ class Tracker:
                                         f"passband; not following and not steering back")
                         return TICK_S
 
-        if self.mode_set_for != p.get("aos"):
+        new_pass = self.mode_set_for != p.get("aos")
+        if new_pass:
             rx = rx_mode_for(p.get("down_mode"))
             if rx:
                 self._rig(f"M {rx[0]} {rx[1]}".encode())
@@ -347,12 +348,15 @@ class Tracker:
             self.mode_set_for = p.get("aos")
             self.logit(f"{p.get('display', sat)} AOS - tracking "
                        f"(peak {round(p.get('peak_el', 0))} deg), {mode_note}", "good")
-            self._capture_start(p.get("display", sat))
 
         hz = dn["hz"] + self.offset
         if self.last_sent is None or abs(hz - self.last_sent) >= STEP_HZ:
             self._rig(f"F {hz}".encode())
             self.last_sent = hz
+        # After the first tune, so the recording starts on the bird and not on
+        # wherever the receiver happened to be.
+        if new_pass:
+            self._capture_start(p.get("display", sat))
         self._set_state("tracking",
                         f"{dn['shift_hz']:+d} Hz Doppler"
                         + (f", offset {self.offset:+d} Hz" if self.offset else ""))
@@ -360,6 +364,10 @@ class Tracker:
 
     def _set_state(self, state: str, detail: str = "") -> None:
         with self._lock:
+            # A tick that was mid-flight when the engagement ended must not
+            # write its state over "off".
+            if self._stop.is_set():
+                return
             changed = (state != self.state)
             self.state, self.detail = state, detail
         if changed:
