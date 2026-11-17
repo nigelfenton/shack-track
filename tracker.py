@@ -41,6 +41,17 @@ transceiver) or "receiver". They differ in exactly two ways:
   * An SDR program may not implement `t` at all and answers RPRT. On the
     receiver that counts as "not transmitting". On the transceiver it never
     does: there, anything but a clean 0 holds the write.
+
+CAPTURE ON THE RECEIVER (2026-11-16). A weather pass nobody watches should
+still leave something to look at. At AOS the receiver -- and only the receiver
+-- is also sent `\\start` (start playing) and `AOS` (start recording); at LOS,
+`LOS` (stop recording). Those are SDR++'s rigctl-server verbs, measured on
+v1.3.2: AOS/LOS answer RPRT 0, `\\start` answers nothing at all. Whether a
+recording is actually made is the SDR program's decision (SDR++: the rigctl
+server's Recording tick box and chosen recorder); a program that does not know
+the verbs answers an error and nothing else changes. Playing is left running
+at LOS: stopping it would be taking the receiver away from whoever is using it.
+The transceiver is never sent any of these.
 """
 
 from __future__ import annotations
@@ -108,6 +119,7 @@ class Tracker:
         self.state = "off"            # off | waiting | tracking | idle-no-radio
         self.detail = ""
         self.mode_set_for: str | None = None
+        self.capturing = False        # we asked the receiver to record; a stop is owed
 
     # ---- persistence ------------------------------------------------------
     def load(self) -> None:
@@ -118,6 +130,8 @@ class Tracker:
             return
         if d.get("sat"):
             self.offset = int(d.get("offset", 0))
+            # A recording started before the restart still owes its stop.
+            self.capturing = bool(d.get("capturing"))
             # A state file from before there were two radios has no target.
             target = d.get("target") if d.get("target") in TARGETS else "radio"
             self.logit(f"restart: re-engaging {d['sat']} on the {target} "
@@ -128,7 +142,7 @@ class Tracker:
         try:
             self._path.write_text(json.dumps(
                 {"sat": self.sat, "offset": self.offset, "target": self.target,
-                 "saved": _now_iso()}), encoding="utf-8")
+                 "capturing": self.capturing, "saved": _now_iso()}), encoding="utf-8")
         except OSError as e:
             self.logit(f"could not save tracker state: {e}", "bad")
 
@@ -179,6 +193,8 @@ class Tracker:
             return self.status()
 
     def disengage(self) -> dict:
+        # Before the engagement is cleared, while the target is still known.
+        self._capture_stop(final=True)
         with self._lock:
             was = self.sat
             self.sat = None
@@ -219,6 +235,37 @@ class Tracker:
         except (ValueError, IndexError):
             return None
 
+    # ---- capture (receiver only) -----------------------------------------
+    def _capture_start(self, name: str) -> None:
+        if self.target != "receiver":
+            return
+        self._rig(b"\\start")                 # SDR++ gives no reply to this one
+        r = self._rig(b"AOS")
+        self.capturing = True
+        self._save()
+        if r is not None and r.startswith("RPRT 0"):
+            self.logit(f"{name}: asked the receiver to play and record", "good")
+        else:
+            self.logit(f"{name}: asked the receiver to play and record; "
+                       f"it answered {r!r}, so it may not be recording", "warn")
+
+    def _capture_stop(self, final: bool = False) -> None:
+        """Send the stop a started recording is owed. If the receiver cannot be
+        reached the debt stands and the next idle tick tries again; `final`
+        (disengaging) gets one attempt and says so if it failed."""
+        if not self.capturing or self.target != "receiver":
+            return
+        r = self._rig(b"LOS")
+        if r is None and not final:
+            return
+        self.capturing = False
+        self._save()
+        if r is None:
+            self.logit("could not reach the receiver to stop its recording - "
+                       "stop it by hand", "bad")
+        else:
+            self.logit("asked the receiver to stop recording")
+
     # ---- the loop ---------------------------------------------------------
     def _run(self) -> None:
         while not self._stop.is_set():
@@ -250,6 +297,7 @@ class Tracker:
             self._set_state("waiting", f"AOS in {secs} s" if secs is not None else "waiting")
             self.last_sent = None          # a new pass starts from centre + offset
             self.mode_set_for = None
+            self._capture_stop()
             return IDLE_TICK_S if (secs or 0) > 120 else TICK_S
 
         # The receiver may use a receive-only frequency; the transceiver may not.
@@ -299,6 +347,7 @@ class Tracker:
             self.mode_set_for = p.get("aos")
             self.logit(f"{p.get('display', sat)} AOS - tracking "
                        f"(peak {round(p.get('peak_el', 0))} deg), {mode_note}", "good")
+            self._capture_start(p.get("display", sat))
 
         hz = dn["hz"] + self.offset
         if self.last_sent is None or abs(hz - self.last_sent) >= STEP_HZ:
