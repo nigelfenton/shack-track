@@ -31,6 +31,7 @@
   --shadow:0 1px 2px rgba(0,0,0,.5),0 10px 30px rgba(0,0,0,.4);
 }
 *{box-sizing:border-box}
+[hidden]{display:none!important}
 html,body{height:100%}
 body{margin:0;background:var(--ground);color:var(--ink);font-family:"JetBrains Mono",ui-monospace,monospace;
   display:flex;align-items:center;justify-content:center;padding:2vmin}
@@ -61,11 +62,11 @@ body{margin:0;background:var(--ground);color:var(--ink);font-family:"JetBrains M
   <div class="cell" id="c-aos"><span class="k">AOS</span><span class="v">…</span><span class="s"></span></div>
   <div class="cell" id="c-count"><span class="k">Countdown</span><span class="v">…</span><span class="s"></span></div>
   <div class="cell" id="c-el"><span class="k">Max el</span><span class="v">…</span><span class="s"></span></div>
-  <div class="cell" id="c-rotor"><span class="k">Rotor</span><span class="v dim">no rotor</span><span class="s">not wired up yet</span></div>
+  <div class="cell" id="c-rotor" hidden><span class="k">Rotor</span><span class="v dim">no rotor</span><span class="s">not wired up yet</span></div>
   <div class="cell" id="c-keps"><span class="k">Keps</span><span class="v">…</span><span class="s"></span></div>
 </div>
-<div class="foot"><a href="/">passes</a> · <a href="/bird">Bird</a>
-    <a href="/live">operating</a> · <span id="clock"></span></div>
+<div class="foot"><a href="/">passes</a> · <a href="/weather">weather</a> · <a href="/live">operating</a> ·
+    <a href="/bird">bird</a> · <span id="clock"></span></div>
 
 <script>
 (() => {

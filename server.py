@@ -186,6 +186,13 @@ def index():
     return send_from_directory(app.static_folder, "index.html")
 
 
+@app.get("/weather")
+def weather_page():
+    """Geostationary weather satellites and the Meteor passes. Same file as the
+    pass list; the page reads its own address to decide which it is."""
+    return send_from_directory(app.static_folder, "index.html")
+
+
 @app.get("/api/passes")
 def api_passes():
     try:

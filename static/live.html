@@ -35,7 +35,7 @@
 *{box-sizing:border-box}
 body{margin:0;background:var(--ground);color:var(--ink);font-family:"Source Sans 3",ui-sans-serif,system-ui,sans-serif;
   font-size:16px;line-height:1.5;-webkit-font-smoothing:antialiased}
-.wrap{max-width:1080px;margin:0 auto;padding:28px 20px 60px;display:flex;flex-direction:column;gap:16px}
+.wrap{max-width:1080px;margin:0 auto;padding:22px 20px 60px;display:flex;flex-direction:column;gap:16px}
 .eyebrow{font-family:"JetBrains Mono",ui-monospace,monospace;font-size:.7rem;letter-spacing:.16em;text-transform:uppercase;color:var(--label)}
 .mono{font-family:"JetBrains Mono",ui-monospace,monospace;font-variant-numeric:tabular-nums}
 .mock{background:var(--panel);border:1px solid var(--edge);border-radius:10px;box-shadow:var(--shadow);overflow:hidden}
@@ -45,16 +45,20 @@ body{margin:0;background:var(--ground);color:var(--ink);font-family:"Source Sans
 @media(max-width:760px){.compass{border-right:none;border-bottom:1px solid var(--edge)}}
 .dial{width:100%;max-width:260px;aspect-ratio:1;display:block}
 .stack{padding:22px;display:flex;flex-direction:column}
-.row{display:grid;grid-template-columns:82px minmax(0,1fr) auto;gap:14px;align-items:baseline;padding:11px 0;border-bottom:1px solid var(--edge)}
+.row{display:grid;grid-template-columns:82px minmax(0,1fr) auto;gap:14px;align-items:baseline;padding:10px 0;border-bottom:1px solid var(--edge)}
+@media(max-width:560px){.row{grid-template-columns:70px minmax(0,1fr);row-gap:0}.row .d{grid-column:2;text-align:left}}
 .row:last-child{border-bottom:none}
 .row .k{font-family:"JetBrains Mono",ui-monospace,monospace;font-size:.68rem;letter-spacing:.12em;text-transform:uppercase;color:var(--label)}
-.row .v{font-family:"JetBrains Mono",ui-monospace,monospace;font-variant-numeric:tabular-nums;font-size:1.22rem;color:var(--ink);white-space:nowrap}
+.row .v{font-family:"JetBrains Mono",ui-monospace,monospace;font-variant-numeric:tabular-nums;font-size:clamp(1.2rem,2.6vw,1.6rem);color:var(--ink);white-space:nowrap}
 .row .v small{font-size:.72rem;color:var(--label);margin-left:6px;letter-spacing:.04em}
 .row .v.bad{color:var(--los);font-size:1rem}
 .row .v.computed{color:var(--ink-2);opacity:.85}
 .row .d{font-family:"JetBrains Mono",ui-monospace,monospace;font-size:.78rem;color:var(--live);text-align:right;white-space:nowrap}
 .row .d.warn{color:var(--soon)} .row .d.bad{color:var(--los)} .row .d.dim{color:var(--label)}
-.satline{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:6px}
+.satline{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+/* Track gets a line of its own: it is the one control on the page. */
+.trackbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:12px 0 6px;padding:10px 12px;
+  background:var(--panel-2);border-radius:8px}
 .satname{font-family:Chivo,sans-serif;font-weight:900;font-size:1.7rem;letter-spacing:-.02em}
 .pill{font-family:"JetBrains Mono",ui-monospace,monospace;font-size:.66rem;letter-spacing:.12em;text-transform:uppercase;padding:3px 9px;border-radius:999px;border:1px solid}
 .pill.live{color:var(--live);border-color:var(--live)}
@@ -63,10 +67,11 @@ body{margin:0;background:var(--ground);color:var(--ink);font-family:"Source Sans
 .tos{font-family:"JetBrains Mono",ui-monospace,monospace;font-size:.82rem;color:var(--label);margin-left:auto}
 /* Track: a STANDING instruction, not a per-pass action -- it stays on across
    LOS, a server restart and the radio going away, until pressed again. */
-.track{all:unset;cursor:pointer;font-family:"JetBrains Mono",ui-monospace,monospace;font-size:.66rem;
-  letter-spacing:.12em;text-transform:uppercase;padding:4px 12px;border-radius:999px;
-  border:1px solid var(--edge);color:var(--label)}
-.track:hover{color:var(--ink-2);border-color:var(--ink-2)}
+.track{all:unset;cursor:pointer;font-family:"JetBrains Mono",ui-monospace,monospace;font-size:.78rem;
+  letter-spacing:.12em;text-transform:uppercase;padding:7px 20px;border-radius:999px;
+  border:1px solid var(--accent,var(--track));color:var(--accent,var(--track));font-weight:700}
+.track:hover{color:var(--ink);border-color:var(--ink)}
+.track:focus-visible{outline:2px solid var(--accent,var(--track));outline-offset:2px}
 .track[data-on="1"]{color:var(--ground);background:var(--live);border-color:var(--live);font-weight:700}
 .track[data-on="1"]:hover{color:var(--ground)}
 .track[disabled]{cursor:not-allowed;opacity:.45}
@@ -75,10 +80,10 @@ body{margin:0;background:var(--ground);color:var(--ink);font-family:"Source Sans
   letter-spacing:.08em;text-transform:uppercase;color:var(--label);border:1px solid var(--edge);
   border-radius:999px;padding:3px 10px}
 .target:hover{color:var(--ink-2);border-color:var(--ink-2)}
-.target:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.target:focus-visible{outline:2px solid var(--accent,var(--track));outline-offset:2px}
 .target[disabled]{cursor:not-allowed;opacity:.6}
 [hidden]{display:none!important}
-.tracknote{font-family:"JetBrains Mono",ui-monospace,monospace;font-size:.66rem;color:var(--label)}
+.tracknote{font-family:"JetBrains Mono",ui-monospace,monospace;font-size:.72rem;color:var(--label)}
 .tracknote.bad{color:var(--los)} .tracknote.good{color:var(--live)} .tracknote.warn{color:var(--soon)}
 .ladder{display:flex;align-items:flex-end;gap:3px;height:38px;margin-top:2px;width:100%}
 .ladder i{flex:1;background:var(--grid);border-radius:1px;min-height:2px}
@@ -119,31 +124,11 @@ body{margin:0;background:var(--ground);color:var(--ink);font-family:"Source Sans
 .log .empty{color:var(--label);border:none}
 footer{font-size:.8rem;color:var(--label);display:flex;flex-wrap:wrap;gap:6px 18px}
 footer a{color:inherit}
-
-/* ---- shared nav: the three views, same place on every page ---- */
-.nav{display:flex;gap:0;align-items:center;flex-wrap:wrap;margin-bottom:14px}
-.nav a{font-family:"JetBrains Mono",ui-monospace,monospace;font-size:.7rem;letter-spacing:.12em;
-  text-transform:uppercase;color:var(--label);text-decoration:none;padding:7px 14px;
-  border:1px solid var(--edge);border-right-width:0;background:var(--panel)}
-.nav a:first-child{border-radius:6px 0 0 6px}
-.nav a:last-of-type{border-right-width:1px;border-radius:0 6px 6px 0}
-.nav a:hover{color:var(--ink-2)}
-.nav a[aria-current="page"]{color:var(--ink);background:var(--panel-2);border-color:var(--track)}
-.nav .sp{flex:1}
-.nav .api{border:none;background:none;padding:7px 0 7px 14px;font-size:.64rem}
 </style>
 </head>
 <body>
 <div class="wrap">
-  <nav class="nav">
-    <a href="/">Passes</a>
-    <a href="/live" aria-current="page">Operating</a>
-    <a href="/bird">Bird</a>
-    <a href="/strip">Strip</a>
-    <span class="sp"></span>
-    <a class="api" href="/api/live">api</a>
-  </nav>
-  <div class="eyebrow">Shack-Track · during the pass</div>
+  <script src="/static/nav.js" data-here="live"></script>
 
   <div class="mock opview" id="view">
     <div class="compass">
@@ -169,11 +154,13 @@ footer a{color:inherit}
         <span class="satname" id="sat">…</span>
         <span class="pill" id="state">…</span>
         <span class="pill mode" id="mode"></span>
+        <span class="tos" id="tos"></span>
+      </div>
+      <div class="trackbar">
         <button class="track" id="track" data-on="0" title="Track this bird: stays engaged across LOS and restarts until pressed again">Track</button>
         <button class="target" id="target" type="button" hidden
                 title="Which radio Track tunes. Press to switch."></button>
         <span class="tracknote" id="tracknote"></span>
-        <span class="tos" id="tos"></span>
       </div>
       <div class="row"><span class="k">Radio</span><span class="v" id="radio-v">…</span><span class="d" id="radio-d"></span></div>
       <div class="row" id="rx-row" hidden><span class="k">Receiver</span><span class="v" id="rx-v">…</span><span class="d" id="rx-d"></span></div>

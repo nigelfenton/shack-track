@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Shack-Track · Tonight's passes</title>
+<title>Shack-Track · Upcoming passes</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chivo:wght@400;700;900&family=Source+Sans+3:wght@400;600&family=JetBrains+Mono:wght@400;700&display=swap">
@@ -39,20 +39,28 @@
 body{margin:0;background:var(--ground);color:var(--ink);
   font-family:"Source Sans 3",ui-sans-serif,system-ui,sans-serif;font-size:16px;line-height:1.5;
   -webkit-font-smoothing:antialiased}
-.wrap{max-width:1080px;margin:0 auto;padding:36px 20px 80px;display:flex;flex-direction:column;gap:22px}
-h1{font-family:Chivo,ui-sans-serif,system-ui,sans-serif;font-weight:900;font-size:clamp(1.6rem,4vw,2.3rem);
+.wrap{max-width:1080px;margin:0 auto;padding:22px 20px 80px;display:flex;flex-direction:column;gap:18px}
+h1{font-family:Chivo,ui-sans-serif,system-ui,sans-serif;font-weight:900;font-size:clamp(1.35rem,3.2vw,1.8rem);
   letter-spacing:-.02em;line-height:1.05;margin:0}
 .mono{font-family:"JetBrains Mono",ui-monospace,monospace;font-variant-numeric:tabular-nums}
 .eyebrow{font-family:"JetBrains Mono",ui-monospace,monospace;font-size:.7rem;letter-spacing:.16em;
   text-transform:uppercase;color:var(--label)}
-header{display:flex;flex-direction:column;gap:8px;border-bottom:1px solid var(--edge);padding-bottom:18px}
-.meta{display:flex;flex-wrap:wrap;gap:8px;margin-top:6px;align-items:center}
+/* One line: what this page is on the left, the facts it was computed from on
+   the right. The rarely used controls live behind "More". */
+header{display:flex;flex-direction:column;gap:10px}
+.headline{display:flex;flex-wrap:wrap;align-items:center;gap:10px 16px}
+.headline h1{margin-right:auto}
+.meta{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.morebox{display:flex;flex-wrap:wrap;gap:10px 28px;align-items:center;background:var(--panel);
+  border:1px solid var(--edge);border-radius:8px;padding:10px 14px}
+.sect{font-family:"JetBrains Mono",ui-monospace,monospace;font-size:.7rem;letter-spacing:.16em;
+  text-transform:uppercase;color:var(--label);margin:6px 0 -8px}
 /* Downloads. Deliberately plain anchors, not buttons: the browser's own
    save behaviour and "copy link" both work, and a middle-click does the
    right thing. Always the 24 h list regardless of the view toggle above. */
 /* Grid entry. Anyone can point this at their own square; nothing here reads
    the radio, so it needs no login and gives away nothing about this station. */
-.gr{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;align-items:center}
+.gr{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
 .gr .lbl{font-family:"JetBrains Mono",ui-monospace,monospace;font-size:.64rem;
   letter-spacing:.12em;text-transform:uppercase;color:var(--label)}
 .gr input{font-family:"JetBrains Mono",ui-monospace,monospace;font-size:.72rem;
@@ -65,7 +73,7 @@ header{display:flex;flex-direction:column;gap:8px;border-bottom:1px solid var(--
 .gr button:hover{color:var(--ink);border-color:var(--track)}
 .gr .err{font-size:.7rem;color:var(--los)}
 .gr .home{font-size:.7rem;color:var(--label);text-decoration:none;border-bottom:1px dotted var(--edge)}
-.dl{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px;align-items:center}
+.dl{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
 .dl .lbl{font-family:"JetBrains Mono",ui-monospace,monospace;font-size:.64rem;
   letter-spacing:.12em;text-transform:uppercase;color:var(--label)}
 .dl a{font-family:"JetBrains Mono",ui-monospace,monospace;font-size:.7rem;
@@ -79,6 +87,8 @@ header{display:flex;flex-direction:column;gap:8px;border-bottom:1px solid var(--
 .tag.bad{color:var(--los);border-color:var(--los)}
 .tag button{all:unset;cursor:pointer;color:inherit}
 .tag button:hover{text-decoration:underline}
+.tag button:focus-visible{outline:2px solid var(--accent);outline-offset:3px;border-radius:999px}
+.tag.btn[aria-expanded="true"]{color:var(--ink);border-color:var(--accent)}
 
 .mock{background:var(--panel);border:1px solid var(--edge);border-radius:10px;box-shadow:var(--shadow);overflow:hidden}
 .tl{padding:16px 22px;display:flex;flex-direction:column}
@@ -86,6 +96,10 @@ header{display:flex;flex-direction:column;gap:8px;border-bottom:1px solid var(--
   padding:11px 0;border-bottom:1px solid var(--edge)}
 .tlrow:last-of-type{border-bottom:none}
 .tlrow.past{opacity:.45}
+/* A row that opens the Operating page for that bird. */
+a.tlrow{color:inherit;text-decoration:none;margin:0 -8px;padding-left:8px;padding-right:8px}
+a.tlrow:hover{background:var(--panel-2)}
+a.tlrow:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
 .tlname{display:flex;flex-direction:column;gap:1px;min-width:0}
 .tlname b{font-family:Chivo,sans-serif;font-weight:700;font-size:.98rem;display:flex;gap:8px;align-items:center}
 .tlname span{font-family:"JetBrains Mono",ui-monospace,monospace;font-size:.64rem;color:var(--label);
@@ -121,16 +135,7 @@ details summary{cursor:pointer}
 .note{font-size:.9rem;color:var(--label);max-width:70ch}
 .note b{color:var(--ink-2);font-weight:600}
 
-/* ---- view switch: passes, or the geostationary weather birds ---- */
-.vs{display:inline-flex;margin-top:10px}
-.vs button{font-family:"JetBrains Mono",ui-monospace,monospace;font-size:.72rem;letter-spacing:.08em;
-  text-transform:uppercase;color:var(--label);background:var(--panel);border:1px solid var(--edge);
-  padding:7px 14px;cursor:pointer}
-.vs button:first-child{border-radius:6px 0 0 6px;border-right-width:0}
-.vs button:last-child{border-radius:0 6px 6px 0}
-.vs button:hover{color:var(--ink-2)}
-.vs button[aria-pressed="true"]{color:var(--ink);background:var(--panel-2);border-color:var(--track)}
-.vs button:focus-visible,.georow:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.georow:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 /* A geo row is a real button: it selects the satellite. */
 .georow{all:unset;box-sizing:border-box;width:100%;cursor:pointer;display:grid;
   grid-template-columns:150px minmax(0,1fr) 96px;gap:16px;align-items:center;
@@ -156,68 +161,57 @@ details summary{cursor:pointer}
 .dls b span{display:block;font-weight:400;color:var(--label);font-size:.68rem}
 .card .srcline{font-size:.76rem;color:var(--label)}
 @media (max-width:560px){
+  /* Phone: name and time on one line, the bar full width beneath, so the
+     bar keeps enough room to mean something. */
+  .tl{padding:10px 14px}
+  .tlrow{grid-template-columns:minmax(0,1fr) auto;gap:6px 12px}
+  .tlrow .bar{grid-column:1 / -1;grid-row:2;height:20px}
+  .tlaxis{grid-template-columns:1fr}
+  .tlaxis > span:not(.axmarks){display:none}
   .georow{grid-template-columns:104px minmax(0,1fr) 64px;gap:10px}
   .dls div{grid-template-columns:1fr;gap:2px}
 }
-
-/* ---- shared nav: the three views, same place on every page ---- */
-.nav{display:flex;gap:0;align-items:center;flex-wrap:wrap;margin-bottom:14px}
-.nav a{font-family:"JetBrains Mono",ui-monospace,monospace;font-size:.7rem;letter-spacing:.12em;
-  text-transform:uppercase;color:var(--label);text-decoration:none;padding:7px 14px;
-  border:1px solid var(--edge);border-right-width:0;background:var(--panel)}
-.nav a:first-child{border-radius:6px 0 0 6px}
-.nav a:last-of-type{border-right-width:1px;border-radius:0 6px 6px 0}
-.nav a:hover{color:var(--ink-2)}
-.nav a[aria-current="page"]{color:var(--ink);background:var(--panel-2);border-color:var(--track)}
-.nav .sp{flex:1}
-.nav .api{border:none;background:none;padding:7px 0 7px 14px;font-size:.64rem}
 </style>
 </head>
 <body>
 <div class="wrap">
-  <nav class="nav">
-    <a href="/" aria-current="page">Passes</a>
-    <a href="/bird">Bird</a>
-    <a href="/live">Operating</a>
-    <a href="/strip">Strip</a>
-    <span class="sp"></span>
-    <a class="api" href="/api/passes?hours=12">api</a>
-  </nav>
+  <script src="/static/nav.js" data-here="passes"></script>
   <header>
-    <div class="eyebrow">Shack-Track · before the pass</div>
-    <h1 id="title">Tonight's passes</h1>
-    <div class="vs" role="group" aria-label="Which satellites to list">
-      <button type="button" id="vpass" aria-pressed="true">Passes</button>
-      <button type="button" id="vgeo" aria-pressed="false"
-              title="Geostationary weather satellites: no passes, just where to point.">Geo · weather</button>
+    <div class="headline">
+      <h1 id="title">Upcoming passes</h1>
+      <div class="meta">
+        <span class="tag" id="qth">QTH …</span>
+        <span class="tag" id="window"><button id="hours" title="Press to change how far ahead to look">next 12 h</button></span>
+        <span class="tag" id="keps">keps …</span>
+        <span class="tag" id="clock">…</span>
+        <span class="tag btn"><button id="morebtn" type="button" aria-expanded="false" aria-controls="morebox"
+              title="Passes for another grid square, and downloads">More</button></span>
+      </div>
     </div>
-    <div class="meta">
-      <span class="tag" id="qth">QTH …</span>
-      <span class="tag" id="window"><button id="hours">next 12 h</button></span>
-      <span class="tag" id="keps">keps …</span>
-      <span class="tag" id="clock">…</span>
-    </div>
-    <div class="gr" id="gridbox">
-      <span class="lbl">grid</span>
-      <input id="gridin" maxlength="6" placeholder="II22TB" spellcheck="false"
-             aria-label="Maidenhead grid square to predict passes for">
-      <button id="gridgo" type="button">Show passes</button>
-      <a class="home" id="gridhome" href="/" hidden>back to the shack</a>
-      <span class="err" id="griderr"></span>
-    </div>
-    <div class="dl" id="dl">
-      <span class="lbl">download</span>
-      <a href="/api/export/passes.csv" download
-         title="The next 24 h of passes as a spreadsheet: AOS/LOS in UTC and local, duration, peak elevation and azimuth, up/downlink.">CSV</a>
-      <a href="/api/export/passes.ics" download
-         title="The next 24 h as calendar events you can import into Outlook, Google Calendar or a phone.">Calendar</a>
-      <a href="/api/export/passes.json" download
-         title="The raw 24 h pass records exactly as the API returns them.">JSON</a>
-      <a href="/api/export/satellites.json" download
-         title="The satellite table itself: frequencies, modes, transponder sense and where each entry came from.">Satellites</a>
+    <div class="morebox" id="morebox" hidden>
+      <div class="gr" id="gridbox">
+        <span class="lbl">another grid</span>
+        <input id="gridin" maxlength="6" placeholder="II22TB" spellcheck="false"
+               aria-label="Maidenhead grid square to predict passes for">
+        <button id="gridgo" type="button">Show</button>
+        <a class="home" id="gridhome" href="/" hidden>back to the shack</a>
+        <span class="err" id="griderr"></span>
+      </div>
+      <div class="dl" id="dl">
+        <span class="lbl">download 24 h</span>
+        <a href="/api/export/passes.csv" download
+           title="The next 24 h of passes as a spreadsheet: AOS/LOS in UTC and local, duration, peak elevation and azimuth, up/downlink.">CSV</a>
+        <a href="/api/export/passes.ics" download
+           title="The next 24 h as calendar events you can import into Outlook, Google Calendar or a phone.">Calendar</a>
+        <a href="/api/export/passes.json" download
+           title="The raw 24 h pass records exactly as the API returns them.">JSON</a>
+        <a href="/api/export/satellites.json" download
+           title="The satellite table itself: frequencies, modes, transponder sense and where each entry came from.">Satellites</a>
+      </div>
     </div>
   </header>
 
+  <div class="sect" id="geohead" hidden>Geostationary · where to point</div>
   <div class="mock"><div class="tl" id="tl"><div class="empty">Loading…</div></div></div>
   <div class="mock" id="geocard" hidden></div>
 
@@ -225,8 +219,13 @@ details summary{cursor:pointer}
   are no pass times: the bar is <b>elevation above your horizon</b> and the number on the right is the
   <b>true (not magnetic) azimuth</b>. Pick one for pointing and downlink details. Their broadcasts are
   near 1.7 GHz, so this is for a dish and an SDR; <b>nothing here tunes a radio</b>.</p>
+  <div class="sect" id="wxhead" hidden>Meteor · passes in the next 24 h</div>
+  <div class="mock" id="wxmock" hidden><div class="tl" id="wxtl"><div class="empty">Loading…</div></div></div>
+  <p class="note" id="wxnote" hidden>The Meteor-M satellites are in low orbit and do pass over. They send
+  pictures on <b>137.9 MHz</b>, receive only. Press a pass to open it on the Operating page, where Track
+  can follow it on the receiver.</p>
   <p class="note" id="passnote">Bar length is <b>time above the horizon</b>; colour is <b>elevation class</b>
-  (green ≥ 45°, cyan ≥ 20°, grey below). Times are local. Nothing here reads the radio.</p>
+  (green ≥ 45°, cyan ≥ 20°, grey below). Times are local. Press a pass to open it on the Operating page.</p>
 
   <footer>
     <span id="src"></span>
@@ -253,19 +252,16 @@ details summary{cursor:pointer}
     return `${h} h ${pad(m % 60)}`;
   };
 
-  function render() {
-    const tl = $('tl');
-    if (view !== 'passes' || !data) return;
-    if (data.error) {
-      tl.innerHTML = `<div class="err"><b>Pass engine not reachable</b>${esc(data.error)}</div>`;
-      return;
-    }
+  // The rows for one pass list plus its time axis. `link` makes each row open
+  // the Operating page for that bird; it is off when a visitor is looking at
+  // another grid, because Operating is this station's radio, not theirs.
+  function passRows(d, link) {
     const now = Date.now();
-    const t0 = Date.parse(data.generated);
-    const t1 = t0 + data.window_hours * 3600e3;
+    const t0 = Date.parse(d.generated);
+    const t1 = t0 + d.window_hours * 3600e3;
     const span = t1 - t0;
     const rows = [];
-    for (const p of data.passes) {
+    for (const p of d.passes) {
       const aos = Date.parse(p.aos), los = Date.parse(p.los);
       const left = Math.max(0, (aos - t0) / span * 100);
       const width = Math.max(0.4, Math.min(100 - left, (los - aos) / span * 100));
@@ -279,28 +275,46 @@ details summary{cursor:pointer}
       // Inside the bar when it is wide enough to hold the text, beside it otherwise.
       const inside = width > 12;
       const label = inside ? text : '';
-      const aside = inside ? '' : `<b class="aside ${p.el_class}" style="left:calc(${(left + width).toFixed(2)}% + 6px)">${text}</b>`;
+      // Beside the bar: to its right, or to its left when the bar ends near the edge.
+      const side = left + width > 80
+        ? `right:calc(${(100 - left).toFixed(2)}% + 6px)` : `left:calc(${(left + width).toFixed(2)}% + 6px)`;
+      const aside = inside ? '' : `<b class="aside ${p.el_class}" style="${side}">${text}</b>`;
       const nowMark = (now >= t0 && now <= t1) ? `<i class="now" style="left:${((now - t0) / span * 100).toFixed(2)}%"></i>` : '';
-      rows.push(`<div class="tlrow${past ? ' past' : ''}" title="${esc(p.note || '')}">
+      const tag = link && !past ? 'a' : 'div';
+      const href = tag === 'a' ? ` href="/live?sat=${encodeURIComponent(p.sat)}"` : '';
+      rows.push(`<${tag} class="tlrow${past ? ' past' : ''}"${href} title="${esc(p.note || '')}">
         <span class="tlname"><b>${esc(p.display)}${live ? '<span class="pill">live</span>' : ''}</b><span>${esc(p.mode)}</span></span>
         <span class="bar"><em class="${p.el_class}" style="left:${left.toFixed(2)}%;width:${width.toFixed(2)}%">${label}</em>${aside}${nowMark}</span>
         <span class="tlwhen"><b>${hhmm(new Date(aos))}</b>${when}</span>
-      </div>`);
+      </${tag}>`);
     }
-    if (!rows.length) rows.push(`<div class="empty">No passes above ${data.min_elevation_deg}° in the next ${data.window_hours} h.</div>`);
+    if (!rows.length) return rows;
 
     // Axis marks: every 15 min for a window up to 2 h, hourly to 12 h, 2-hourly beyond.
-    const stepMin = data.window_hours <= 2 ? 15 : data.window_hours > 12 ? 120 : 60;
+    const stepMin = d.window_hours <= 2 ? 15 : d.window_hours > 12 ? 120 : 60;
     const marks = [];
     const first = new Date(t0); first.setSeconds(0, 0);
     first.setMinutes(Math.ceil((first.getMinutes() + 1) / stepMin) * stepMin);
-    for (let d = first; d.getTime() <= t1; d = new Date(d.getTime() + stepMin * 60e3)) {
-      const x = (d.getTime() - t0) / span * 100;
-      marks.push(`<span style="left:${x.toFixed(2)}%">${hhmm(d)}</span>`);
+    for (let m = first; m.getTime() <= t1; m = new Date(m.getTime() + stepMin * 60e3)) {
+      const x = (m.getTime() - t0) / span * 100;
+      marks.push(`<span style="left:${x.toFixed(2)}%">${hhmm(m)}</span>`);
     }
     rows.push(`<div class="tlaxis"><span></span><span class="axmarks">${marks.join('')}</span><span></span></div>`);
+    return rows;
+  }
+
+  function render() {
+    const tl = $('tl');
+    if (view !== 'passes' || !data) return;
+    if (data.error) {
+      tl.innerHTML = `<div class="err"><b>Pass engine not reachable</b>${esc(data.error)}</div>`;
+      return;
+    }
+    const rows = passRows(data, !grid);
+    if (!rows.length) rows.push(`<div class="empty">No passes above ${data.min_elevation_deg}° in the next ${data.window_hours} h.</div>`);
     tl.innerHTML = rows.join('');
 
+    const t0 = Date.parse(data.generated);
     $('qth').textContent = `${data.qth.name} · ${data.qth.lat.toFixed(4)}, ${data.qth.lon.toFixed(4)}`;
     $('src').textContent = `${data.passes.length} passes · ${data.tle_count} TLEs · newest epoch ${data.tle_newest_epoch || '?'}`
       + (data.missing_from_tle.length ? ` · not in TLE: ${data.missing_from_tle.join(', ')}` : '');
@@ -308,17 +322,46 @@ details summary{cursor:pointer}
     renderKeps();
   }
 
+  // The Meteor passes on the Weather page: the same 24 h pass list, narrowed
+  // to the birds that have a receive-only frequency.
+  let wx = null;
+  function renderWx() {
+    if (view !== 'geo' || !wx) return;
+    const el = $('wxtl');
+    if (wx.error) { el.innerHTML = `<div class="err"><b>Pass engine not reachable</b>${esc(wx.error)}</div>`; return; }
+    const rows = passRows({...wx, passes: wx.passes.filter((p) => p.rx_khz)}, !grid);
+    if (!rows.length) rows.push(`<div class="empty">No Meteor pass above ${wx.min_elevation_deg}° in the next ${wx.window_hours} h.</div>`);
+    el.innerHTML = rows.join('');
+  }
+  async function loadWx() {
+    if (view !== 'geo') return;
+    try {
+      const r = await fetch(grid ? `/api/passes/grid?grid=${encodeURIComponent(grid)}&hours=24` : '/api/passes?hours=24', {cache: 'no-store'});
+      const text = await r.text();
+      try { wx = JSON.parse(text); } catch (e) { wx = {error: `HTTP ${r.status} ${r.statusText} (not JSON)`}; }
+      if (!r.ok && !wx.error) wx = {error: `HTTP ${r.status}`};
+    } catch (e) { wx = {error: String(e)}; }
+    renderWx();
+  }
+
   // ---- geostationary weather view ------------------------------------------
-  // Kept in the URL (?view=geo&sat=...) for the same reason the grid is: the
-  // result is a link, and a reload lands where you were.
-  let view = new URLSearchParams(location.search).get('view') === 'geo' ? 'geo' : 'passes';
+  // This file is served at both / and /weather; the address decides which
+  // page it is. The chosen satellite stays in the URL (?sat=...) for the same
+  // reason the grid does: the result is a link, and a reload lands where you were.
+  // Links made before Weather was its own page said /?view=geo; send those on.
+  if (new URLSearchParams(location.search).get('view') === 'geo' && !location.pathname.startsWith('/weather')) {
+    const u = new URL(location.href); u.pathname = '/weather'; u.searchParams.delete('view');
+    location.replace(u.toString());
+    return;
+  }
+  const view = location.pathname.startsWith('/weather') ? 'geo' : 'passes';
   let geoSel = new URLSearchParams(location.search).get('sat') || '';
   let geo = null;
   const geoGrid = (new URLSearchParams(location.search).get('grid') || '').trim().toUpperCase();
 
   function setUrl() {
     const u = new URL(location.href);
-    if (view === 'geo') u.searchParams.set('view', 'geo'); else u.searchParams.delete('view');
+    u.searchParams.delete('view');
     if (view === 'geo' && geoSel) u.searchParams.set('sat', geoSel); else u.searchParams.delete('sat');
     history.replaceState(null, '', u.toString());
   }
@@ -327,15 +370,13 @@ details summary{cursor:pointer}
 
   function applyView() {
     const g = view === 'geo';
-    $('vpass').setAttribute('aria-pressed', String(!g));
-    $('vgeo').setAttribute('aria-pressed', String(g));
-    $('title').textContent = g ? 'Geostationary weather satellites' : "Tonight's passes";
+    $('title').textContent = g ? 'Weather satellites' : 'Upcoming passes';
+    document.title = g ? 'Shack-Track · Weather satellites' : 'Shack-Track · Upcoming passes';
     $('window').hidden = g; $('dl').hidden = g;
-    $('geonote').hidden = !g; $('passnote').hidden = g;
+    for (const id of ['geohead', 'geonote', 'wxhead', 'wxmock', 'wxnote']) $(id).hidden = !g;
+    $('passnote').hidden = g;
     $('geocard').hidden = !g || !geoSel;
-    setUrl();
-    if (g) { if (geo) renderGeo(); else { $('tl').innerHTML = '<div class="empty">Loading…</div>'; } loadGeo(); }
-    else { render(); }
+    if (g) { setUrl(); loadGeo(); loadWx(); }
   }
 
   function renderGeo() {
@@ -455,7 +496,11 @@ details summary{cursor:pointer}
     const box = $('gridin'), go = $('gridgo'), home = $('gridhome'), err = $('griderr');
     if (!box) return;
     box.value = grid;
-    if (grid) { home.hidden = false; document.title = `Shack-Track · passes for ${grid}`; }
+    if (grid) {
+      home.hidden = false; document.title = `Shack-Track · passes for ${grid}`;
+      // Someone on another grid needs the way back in sight.
+      $('morebox').hidden = false; $('morebtn').setAttribute('aria-expanded', 'true');
+    }
     const submit = () => {
       const v = box.value.trim().toUpperCase();
       if (v && !/^[A-R]{2}[0-9]{2}([A-X]{2})?$/.test(v)) {
@@ -516,14 +561,29 @@ details summary{cursor:pointer}
   });
   $('hours').textContent = `next ${hours} h`;
 
-  setInterval(() => { $('clock').textContent = `${hhmm(new Date())} local · ${hhmmZ(new Date())}`; render(); }, 1000);
-  setInterval(loadPasses, 60e3);
-  setInterval(loadGeo, 300e3);
-  $('vpass').addEventListener('click', () => { view = 'passes'; applyView(); });
-  $('vgeo').addEventListener('click', () => { view = 'geo'; applyView(); });
-  setInterval(loadKeps, 600e3);
-  loadPasses(); loadKeps();
-  if (view === 'geo') applyView();
+  $('morebtn').addEventListener('click', () => {
+    const open = $('morebox').hidden;
+    $('morebox').hidden = !open;
+    $('morebtn').setAttribute('aria-expanded', String(open));
+  });
+
+  // Rows are redrawn once a second so the countdowns move; skip a redraw while
+  // the pointer is over a list, or a click can land on a row that was just replaced.
+  const busy = (id) => $(id).matches(':hover');
+  setInterval(() => {
+    $('clock').textContent = `${hhmm(new Date())} local · ${hhmmZ(new Date())}`;
+    if (view === 'passes') { if (!busy('tl')) render(); }
+    else if (!busy('wxtl')) renderWx();
+  }, 1000);
+  applyView();
+  if (view === 'passes') {
+    setInterval(loadPasses, 60e3);
+    setInterval(loadKeps, 600e3);
+    loadPasses(); loadKeps();
+  } else {
+    setInterval(loadGeo, 300e3);
+    setInterval(loadWx, 60e3);
+  }
 })();
 </script>
 </body>

@@ -38,14 +38,6 @@ body{margin:0;background:var(--ground);color:var(--ink);
   font-family:"Source Sans 3",ui-sans-serif,system-ui,sans-serif;font-size:16px;line-height:1.5;
   -webkit-font-smoothing:antialiased}
 .wrap{max-width:1080px;margin:0 auto;padding:22px 20px 60px;display:flex;flex-direction:column;gap:16px}
-.nav{display:flex;align-items:center}
-.nav a{font-family:"JetBrains Mono",ui-monospace,monospace;font-size:.7rem;letter-spacing:.12em;
-  text-transform:uppercase;color:var(--label);text-decoration:none;padding:7px 14px;
-  border:1px solid var(--edge);border-right-width:0;background:var(--panel)}
-.nav a:first-child{border-radius:6px 0 0 6px}
-.nav a:last-of-type{border-right-width:1px;border-radius:0 6px 6px 0}
-.nav a:hover{color:var(--ink-2)}
-.nav a[aria-current="page"]{color:var(--ink);background:var(--panel-2);border-color:var(--track)}
 .eyebrow{font-family:"JetBrains Mono",ui-monospace,monospace;font-size:.66rem;letter-spacing:.18em;
   text-transform:uppercase;color:var(--label)}
 
@@ -101,12 +93,7 @@ kbd{font-family:"JetBrains Mono",ui-monospace,monospace;font-size:.64rem;border:
 </head>
 <body>
 <div class="wrap">
-  <nav class="nav">
-    <a href="/">Passes</a>
-    <a href="/bird" aria-current="page">Bird</a>
-    <a href="/live">Operating</a>
-    <a href="/strip">Strip</a>
-  </nav>
+  <script src="/static/nav.js" data-here="bird"></script>
 
   <div>
     <div class="eyebrow" id="eyebrow">Shack-Track · one pass at a time</div>
