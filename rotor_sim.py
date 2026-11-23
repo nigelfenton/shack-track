@@ -55,6 +55,7 @@ Binds 127.0.0.1 unless told otherwise. It moves nothing real.
 """
 
 import argparse
+import os
 import socketserver
 import threading
 import time
@@ -310,7 +311,11 @@ class Handler(socketserver.StreamRequestHandler):
 
 
 class Server(socketserver.ThreadingTCPServer):
-    allow_reuse_address = True
+    # On Windows SO_REUSEADDR lets a SECOND process bind a port that is already
+    # being served, and clients then reach one of two different simulated
+    # rotators at random. Found the hard way on 2026-11-22. Only reuse where it
+    # means "skip the TIME_WAIT wait", which is everywhere but Windows.
+    allow_reuse_address = (os.name != "nt")
     daemon_threads = True
 
     def __init__(self, addr, model, gs232a=False, verbose=False, handler=None):
