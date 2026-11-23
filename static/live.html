@@ -139,6 +139,8 @@ footer a{color:inherit}
         <path id="arc" d="" fill="none" stroke="var(--track)" stroke-width="2" opacity=".5" stroke-linecap="round" stroke-linejoin="round"/>
         <path id="done" d="" fill="none" stroke="var(--live)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
         <circle id="dot" cx="-10" cy="-10" r="5" fill="var(--live)" stroke="var(--panel)" stroke-width="2"/>
+        <!-- Where the rotator is pointing. Sized to sit round the bird's dot when it is on target. -->
+        <circle id="rotring" cx="-30" cy="-30" r="9" fill="none" stroke="var(--los)" stroke-width="2" visibility="hidden"><title id="rotring-t">Rotator</title></circle>
         <text x="103" y="43" font-family="JetBrains Mono, monospace" font-size="7" fill="var(--label)">60°</text>
         <text x="103" y="73" font-family="JetBrains Mono, monospace" font-size="7" fill="var(--label)">30°</text>
         <text x="100" y="16" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="10" fill="var(--label)">N</text>
@@ -550,6 +552,23 @@ footer a{color:inherit}
     // Rotator row: only when the station has one. The big number is where the
     // rotator SAYS it is; the detail is what it is doing and how far off it is.
     const ro = data.rotor || {};
+    // The red ring on the sky plot is where the rotator SAYS it is pointing.
+    // A flipped mount reports azimuth + 180 and an elevation past 90: turn that
+    // back into the direction in the sky, which is what the plot shows. Dashed
+    // while unarmed; hidden when there is no position to show.
+    const ring = $('rotring');
+    if (ro.configured && ro.reachable && typeof ro.az === 'number' && now - fetchedAt <= 5000) {
+      const over = ro.el > 90;
+      const skyAz = over ? (ro.az + 180) % 360 : ro.az, skyEl = over ? 180 - ro.el : ro.el;
+      const [rx, ry] = proj(skyAz, Math.max(0, skyEl));
+      ring.setAttribute('cx', rx); ring.setAttribute('cy', ry);
+      ring.setAttribute('stroke-dasharray', ro.armed ? '' : '3 3');
+      ring.setAttribute('visibility', 'visible');
+      $('rotring-t').textContent = `Rotator: azimuth ${Math.round(skyAz)}°, elevation ${skyEl.toFixed(1)}°`
+        + (over ? ' (flipped)' : '') + (ro.armed ? '' : ', not armed');
+    } else {
+      ring.setAttribute('visibility', 'hidden');
+    }
     $('rot-row').hidden = !ro.configured;
     $('rotarm').hidden = !ro.configured || ro.enabled === false;
     if (ro.configured) {
