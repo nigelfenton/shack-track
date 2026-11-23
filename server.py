@@ -12,6 +12,8 @@ safe to expose and useful with the shack switched off.
     GET /setup            station setup: location, minimum elevation, radio
     GET/POST /api/setup   read / save those; POST /api/setup/radio-test reads
                           f and m from a candidate rigctl address
+    GET/POST /api/rotor   the network rotator: where it is, and arm / disarm.
+                          POST /api/setup/rotor-test reads a candidate's position
 
 The setup endpoints change how the station behaves and make the server open a
 connection to an address the caller names, so a public deployment puts them
@@ -53,6 +55,7 @@ from flask import Flask, jsonify, request, send_from_directory
 
 import geo
 import passes as engine
+from rotor import RotctlLink, RotorFollower
 from tracker import Tracker
 
 HERE = Path(__file__).resolve().parent
@@ -106,6 +109,12 @@ RIGCTL = os.environ.get("SHACKTRACK_RIGCTL", "10.0.0.104:4532")
 # which speak rigctl. There is no default -- most stations have none -- and
 # like RIGCTL a "receiver" key saved by the setup page wins.
 RECEIVER = os.environ.get("SHACKTRACK_RECEIVER", "")
+
+# An antenna rotator reached over the network with Hamlib's rotator protocol
+# (rotctld, by convention port 4533). No default; a "rotor" key saved by the
+# setup page wins. Nothing moves unless the rotator is ARMED on the operating
+# page, and it is never armed by a restart -- see rotor.py.
+ROTOR = os.environ.get("SHACKTRACK_ROTOR", "")
 
 # Where the standing engagement is remembered across a restart. An unattended
 # overnight capture must not end because the hub rebooted.
@@ -549,6 +558,15 @@ def _receiver_target() -> str:
     return saved if isinstance(saved, str) and saved else RECEIVER
 
 
+def _rotor_target() -> str:
+    """The network rotator, or '' when the station has none."""
+    try:
+        saved = engine.load_config(SATS).get("rotor")
+    except (OSError, ValueError):
+        saved = None
+    return saved if isinstance(saved, str) and saved else ROTOR
+
+
 def _receiver(cmd: bytes) -> str | None:
     target = _receiver_target()
     return _rigctl_at(target, cmd) if target else None
@@ -631,7 +649,7 @@ def api_live():
     out = dict(state)
     out["radio"] = radio
     out["receiver"] = _cached("receiver", RADIO_TTL_S, _read_receiver)
-    out["rotor"] = {"present": False}
+    out["rotor"] = dict(rotor_follower.status(), enabled=TRACK_ENABLED)
     tr = tracker.status()
     tr["enabled"] = TRACK_ENABLED
     out["tracker"] = tr
@@ -653,6 +671,41 @@ def _live_for(sat: str) -> dict:
 
 
 tracker = Tracker(TRACK_STATE, _live_for, _rigctl, _receiver)
+
+# The rotator follows whatever the tracker is engaged on, and only while armed.
+# It shares the tracker's log so one list tells the whole story of a pass.
+def _rotor_limits() -> dict:
+    """The mount's elevation limits from the setup page: the lowest elevation
+    to point at, and whether the mount travels 0-90 or 0-180."""
+    try:
+        cfg = engine.load_config(SATS)
+    except (OSError, ValueError):
+        return {}
+    return {"el_min": cfg.get("rotor_el_min", 0.0), "el_max": cfg.get("rotor_el_max", 90.0)}
+
+
+rotor_follower = RotorFollower(RotctlLink(_rotor_target), _live_for,
+                               lambda: tracker.sat, tracker.logit, _rotor_limits)
+
+
+@app.get("/api/rotor")
+def api_rotor_status():
+    return jsonify(dict(rotor_follower.status(), enabled=TRACK_ENABLED))
+
+
+@app.post("/api/rotor")
+def api_rotor_set():
+    """Arm or disarm the rotator. Arming is the ONLY thing that lets it move,
+    and it does not survive a restart. {"arm": true} / {"arm": false}."""
+    if not TRACK_ENABLED:
+        return jsonify({"ok": False, "error": "tracking is disabled on this server"}), 403
+    body = request.get_json(silent=True) or {}
+    if "arm" not in body or not isinstance(body["arm"], bool):
+        return jsonify({"ok": False, "error": "arm must be true or false"}), 400
+    if body["arm"]:
+        out = rotor_follower.arm()
+        return jsonify(out), (200 if out.get("ok") else 409)
+    return jsonify(rotor_follower.disarm("disarmed from the page"))
 
 
 @app.get("/api/track")
@@ -766,6 +819,28 @@ def validate_setup(body: dict) -> dict:
             # receive-only frequency, RPRT accepted for PTT) reach the
             # transceiver through the back door.
             raise ValueError("The receiver cannot be the same address as the radio.")
+    if "rotor" in body:
+        try:
+            out["rotor"] = _parse_rigctl(body.get("rotor"))
+        except ValueError as e:
+            raise ValueError(str(e).replace("radio", "rotator").replace(":4532", ":4533")) from None
+        radio = out["rigctl"] if out.get("rigctl") else _rigctl_target()
+        receiver = out["receiver"] if "receiver" in out else _receiver_target()
+        if out["rotor"] and out["rotor"] in (radio, receiver):
+            # A rotator address that is really a radio would have position
+            # commands sent to a transceiver.
+            raise ValueError("The rotator cannot be the same address as the radio or the receiver.")
+    el_min = _number(body, "rotor_el_min", 0, 45, "The rotator's lowest elevation")
+    if el_min is not None:
+        out["rotor_el_min"] = round(el_min, 1)
+    if body.get("rotor_el_max") not in (None, ""):
+        try:
+            el_max = float(body["rotor_el_max"])
+        except (TypeError, ValueError):
+            el_max = None
+        if el_max not in (90.0, 180.0):
+            raise ValueError("The rotator's elevation travel is 90 or 180 degrees.")
+        out["rotor_el_max"] = int(el_max)
     return out
 
 
@@ -781,6 +856,10 @@ def _setup_view(cfg: dict) -> dict:
             "rigctl": {"target": saved or RIGCTL, "source": "setup" if saved else "default",
                        "default": RIGCTL},
             "receiver": {"target": _receiver_target_from(cfg)},
+            "rotor": {"target": (cfg.get("rotor") if isinstance(cfg.get("rotor"), str)
+                                 and cfg.get("rotor") else ROTOR),
+                      "el_min": cfg.get("rotor_el_min", 0.0),
+                      "el_max": cfg.get("rotor_el_max", 90)},
             "sats_file": str(SATS)}
     try:
         view["qth"]["grid"] = engine.maidenhead(float(q["lat"]), float(q["lon"])).upper()
@@ -814,6 +893,14 @@ def save_setup(changes: dict) -> dict:
                 raw["receiver"] = changes["receiver"]
             else:
                 raw.pop("receiver", None)
+        if "rotor" in changes:
+            if changes["rotor"]:
+                raw["rotor"] = changes["rotor"]
+            else:
+                raw.pop("rotor", None)
+        for key in ("rotor_el_min", "rotor_el_max"):
+            if key in changes:
+                raw[key] = changes[key]
         tmp = SATS.with_name(SATS.name + ".tmp")
         tmp.write_text(json.dumps(raw, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
         if SATS.exists():
@@ -873,6 +960,21 @@ def api_setup_radio_test():
     return jsonify(_read_radio_at(target))
 
 
+@app.post("/api/setup/rotor-test")
+def api_setup_rotor_test():
+    """Read the position from a candidate rotator address, before saving it.
+    Read only: it sends `p` and nothing that moves."""
+    body = request.get_json(silent=True) or {}
+    try:
+        target = _parse_rigctl(body.get("rotor"))
+    except ValueError as e:
+        return jsonify({"reachable": False,
+                        "error": str(e).replace("radio", "rotator").replace(":4532", ":4533")}), 400
+    if not target:
+        return jsonify({"reachable": False, "error": "Enter the rotator's address first."}), 400
+    return jsonify(RotctlLink(lambda: target).read())
+
+
 @app.get("/api/keps")
 def api_keps():
     return jsonify(_cached("keps", KEPS_TTL_S, _run_keps))
@@ -918,4 +1020,7 @@ if __name__ == "__main__":
         if TRACK_ENABLED:
             tracker.load()
     threading.Thread(target=resume, name="resume-track", daemon=True).start()
+    # The rotator is read once a second so the page can show where it points.
+    # It starts UNARMED, always: reading moves nothing.
+    rotor_follower.start()
     app.run(host=BIND, port=PORT, debug=False, threaded=True)

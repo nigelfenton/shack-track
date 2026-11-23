@@ -41,9 +41,9 @@ h2{font-family:Chivo,sans-serif;font-weight:700;font-size:1.05rem;margin:0 0 4px
 .hint{color:var(--label);font-size:.9rem;margin:0}
 .row{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px}
 label{display:flex;flex-direction:column;gap:4px;font-size:.85rem;color:var(--ink-2)}
-input{font:inherit;font-family:"JetBrains Mono",ui-monospace,monospace;padding:8px 10px;border:1px solid var(--edge);border-radius:6px;
+input,select{font:inherit;font-family:"JetBrains Mono",ui-monospace,monospace;padding:8px 10px;border:1px solid var(--edge);border-radius:6px;
   background:var(--panel-2);color:var(--ink);min-width:0}
-input:focus{outline:2px solid var(--track);outline-offset:1px}
+input:focus,select:focus{outline:2px solid var(--track);outline-offset:1px}
 .or{align-self:center;color:var(--label);font-size:.85rem}
 .btns{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
 button{font:inherit;font-weight:600;padding:8px 16px;border-radius:6px;border:1px solid var(--edge);background:var(--panel-2);color:var(--ink);cursor:pointer}
@@ -101,6 +101,24 @@ button:disabled{opacity:.5;cursor:default}
     <p class="hint">A second, receive-only radio, such as an RTL-SDR running in AetherSDR or SDR++ with its rigctl server switched on. Tracking can then be sent here instead of the radio, including weather satellites the radio cannot tune. It must be a different address from the radio. Clear the field and save to remove it.</p>
   </section>
 
+  <section class="card" aria-labelledby="rot-h">
+    <h2 id="rot-h">Rotator (optional)</h2>
+    <p class="now" id="rot-now">Loading…</p>
+    <label>rotator address (host:port) <input id="rotor" placeholder="192.168.0.60:4533" autocomplete="off"></label>
+    <label>lowest elevation to point at (degrees, 0 to 45) <input id="rot-elmin" inputmode="decimal" placeholder="0" autocomplete="off"></label>
+    <label>elevation travel
+      <select id="rot-elmax">
+        <option value="90">0 to 90 degrees</option>
+        <option value="180">0 to 180 degrees (can flip over the top)</option>
+      </select>
+    </label>
+    <div class="btns">
+      <button type="button" id="rottest">Test rotator</button>
+      <span class="msg" id="rottest-msg" role="status"></span>
+    </div>
+    <p class="hint">An antenna rotator on the network that speaks Hamlib's rotator protocol (rotctld, usually port 4533). The test only reads its position. Saving an address moves nothing: the rotator follows a satellite only after it is armed on the operating page, and it is never armed by a restart. Below the lowest elevation the rotator keeps following in azimuth and holds that elevation. With 0 to 180 travel, a pass that crosses north is worked flipped (azimuth plus 180, elevation over the top), so the azimuth rotator does not run through its end stop; with 0 to 90, such a pass means a long swing and the operating page says so beforehand.</p>
+  </section>
+
   <div class="btns">
     <button type="button" class="primary" id="save">Save</button>
     <span class="msg" id="save-msg" role="status"></span>
@@ -126,6 +144,11 @@ function render(v) {
   const rx = (v.receiver || {}).target || "";
   $("rx-now").textContent = rx ? "Now: " + rx : "Now: none";
   $("receiver").value = rx;
+  const rot = (v.rotor || {}).target || "";
+  $("rot-now").textContent = rot ? "Now: " + rot : "Now: none";
+  $("rotor").value = rot;
+  $("rot-elmin").value = (v.rotor || {}).el_min ?? 0;
+  $("rot-elmax").value = String((v.rotor || {}).el_max === 180 ? 180 : 90);
   $("grid").value = ""; $("lat").value = ""; $("lon").value = "";
 }
 
@@ -163,8 +186,23 @@ $("rxtest").onclick = async () => {
   } catch (e) { say($("rxtest-msg"), "Test failed: " + e.message, "bad"); }
 };
 
+$("rottest").onclick = async () => {
+  const addr = $("rotor").value.trim();
+  if (!addr) { say($("rottest-msg"), "Enter the rotator's address first.", "bad"); return; }
+  say($("rottest-msg"), "Testing…");
+  try {
+    const r = await fetch("/api/setup/rotor-test", {method: "POST",
+      headers: {"Content-Type": "application/json"}, body: JSON.stringify({rotor: addr})});
+    const v = await r.json();
+    if (v.reachable) say($("rottest-msg"), "Reached " + v.target + ": azimuth " + v.az + "°, elevation " + v.el + "°", "ok");
+    else say($("rottest-msg"), v.error || ("No answer from " + (v.target || addr)), "bad");
+  } catch (e) { say($("rottest-msg"), "Test failed: " + e.message, "bad"); }
+};
+
 $("save").onclick = async () => {
-  const body = {rigctl: $("rigctl").value, receiver: $("receiver").value};
+  const body = {rigctl: $("rigctl").value, receiver: $("receiver").value, rotor: $("rotor").value,
+                rotor_el_max: $("rot-elmax").value};
+  if ($("rot-elmin").value.trim() !== "") body.rotor_el_min = $("rot-elmin").value.trim();
   for (const [id, key] of [["grid","grid"],["lat","lat"],["lon","lon"],["alt","alt_m"],["minel","min_elevation_deg"]]) {
     const val = $(id).value.trim();
     if (val !== "") body[key] = val;

@@ -160,6 +160,8 @@ footer a{color:inherit}
         <button class="track" id="track" data-on="0" title="Track this bird: stays engaged across LOS and restarts until pressed again">Track</button>
         <button class="target" id="target" type="button" hidden
                 title="Which radio Track tunes. Press to switch."></button>
+        <button class="track" id="rotarm" data-on="0" hidden
+                title="Arm the rotator: it then follows the tracked bird. It moves nothing until armed, and a restart never arms it.">Arm rotator</button>
         <span class="tracknote" id="tracknote"></span>
       </div>
       <div class="row"><span class="k">Radio</span><span class="v" id="radio-v">…</span><span class="d" id="radio-d"></span></div>
@@ -167,6 +169,7 @@ footer a{color:inherit}
       <div class="row"><span class="k">Downlink</span><span class="v" id="dn-v">…</span><span class="d" id="dn-d"></span></div>
       <div class="row"><span class="k">Uplink</span><span class="v" id="up-v">…</span><span class="d" id="up-d"></span></div>
       <div class="row"><span class="k">Az / El</span><span class="v" id="azel-v">…</span><span class="d" id="azel-d"></span></div>
+      <div class="row" id="rot-row" hidden><span class="k">Rotator</span><span class="v" id="rot-v">…</span><span class="d" id="rot-d"></span></div>
       <div class="row"><span class="k">Pass</span><span class="v" style="width:100%"><span class="ladder" id="ladder"></span></span><span class="d" id="pass-d"></span></div>
     </div>
   </div>
@@ -398,6 +401,22 @@ footer a{color:inherit}
     load();
   });
 
+  let rotBusy = false;
+  $('rotarm').addEventListener('click', async () => {
+    if (rotBusy) return;
+    rotBusy = true;
+    const on = $('rotarm').dataset.on === '1';
+    try {
+      const r = await fetch('/api/rotor', {
+        method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({arm: !on})});
+      const out = await r.json();
+      if (!out.ok) logit(`rotator not armed: ${out.error}`, 'bad');
+      else logit(on ? 'rotator disarmed and stopped' : 'rotator armed - it follows the tracked bird', on ? 'warn' : 'good');
+    } catch (e) { logit(`rotator request failed: ${e}`, 'bad'); }
+    rotBusy = false;
+    load();
+  });
+
   function paintTrack(data) {
     const t = data.tracker || {}, btn = $('track'), note = $('tracknote');
     // The target chip: hidden without a second receiver; while engaged it
@@ -527,6 +546,27 @@ footer a{color:inherit}
                '', dlt === null ? 'dim' : ok ? '' : away ? 'dim' : 'warn');
       }
       if (now - fetchedAt > 5000) setRow('rx', 'stale', `last update ${hhmm(new Date(fetchedAt))}`, 'bad', 'bad');
+    }
+    // Rotator row: only when the station has one. The big number is where the
+    // rotator SAYS it is; the detail is what it is doing and how far off it is.
+    const ro = data.rotor || {};
+    $('rot-row').hidden = !ro.configured;
+    $('rotarm').hidden = !ro.configured || ro.enabled === false;
+    if (ro.configured) {
+      const arm = $('rotarm');
+      arm.dataset.on = ro.armed ? '1' : '0';
+      arm.textContent = ro.armed ? 'Rotator armed' : 'Arm rotator';
+      arm.setAttribute('aria-pressed', ro.armed ? 'true' : 'false');
+      if (!ro.reachable) {
+        setRow('rot', 'not reachable', `rotctl ${ro.target || ''}${ro.error ? ' · ' + ro.error : ''}`, 'bad', 'bad');
+      } else {
+        const bad = ro.state === 'stalled' || ro.state === 'refused';
+        const off = typeof ro.error_deg === 'number' && ro.error_deg > 3;
+        setRow('rot', `${Math.round(ro.az)}°<small>az</small> &nbsp; ${ro.el.toFixed(1)}°<small>el</small>`,
+               ro.detail || ro.state,
+               bad ? 'bad' : '', bad ? 'bad' : off ? 'warn' : ro.armed ? '' : 'dim');
+      }
+      if (now - fetchedAt > 5000) setRow('rot', 'stale', `last update ${hhmm(new Date(fetchedAt))}`, 'bad', 'bad');
     }
     if (now - fetchedAt > 5000) setRow('radio', 'stale', `last update ${hhmm(new Date(fetchedAt))}`, 'bad', 'bad');
     $('src').textContent = `Skyfield · newest TLE epoch ${data.tle_newest_epoch || '?'} · ${data.qth ? data.qth.name : ''}`;

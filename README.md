@@ -52,12 +52,26 @@ Windows 3.0 in 1990. It works and will keep working, but the code that speaks it
 archaeological — quarantine it in one module. Gpredict (GPL, speaks rotctld) is the
 fallback if SatPC32 is ever abandoned.
 
-## Rotator: nothing to build
+## Rotator: a network rotator, armed by hand
 
-SatPC32 drives GS-232 rotators **natively** via its bundled `ServerSDX.exe`. Setup →
-Rotor setup → `Yaesu_GS-232` → Store → restart. Nigel's K3NG fork speaks GS-232, so this
-is a config job; direct RS-232 remains the fallback. Only *Minimum elevation* and the H/V
-antenna corrections apply to GS-232 controllers.
+The first plan (August 2026) was to build nothing: SatPC32 drives GS-232 rotators itself. That
+stopped being true when Shack-Track took over the tracking, so `rotor.py` now drives a rotator
+over the network with Hamlib's rotator protocol (`rotctld`, usually TCP 4533). That reaches a
+real `rotctld` in front of any controller, the ESP32 and CSN boxes that speak it natively, and
+`rotor_sim.py`.
+
+- **Nothing moves until armed** on the operating page, and a restart never arms it.
+- Armed, it follows whatever is being tracked: to the AOS bearing four minutes before a pass,
+  on the bird during it, stopped at LOS.
+- It re-commands only after the bird has moved 2 degrees.
+- A rotator that is off target and not moving for 12 s is stopped, disarmed and called stalled.
+- Setup has the lowest elevation to point at and the mount's elevation travel (0-90 or 0-180).
+  With 0-180 a pass that crosses north is worked flipped; with 0-90 the page warns of the swing.
+
+`rotor_sim.py` is a rotator controller with no rotator: K3NG's GS-232 emulation on one TCP
+port and the rotctld protocol on another, one simulated mount behind both, with a `--stall`
+option. Not handled yet: azimuth overlap (more than 360 degrees), a stop that is not at north,
+parking. Not run on real hardware.
 
 ## Scope
 
@@ -66,7 +80,7 @@ antenna corrections apply to GS-232 controllers.
    `celestrak.org` and the old URLs 404'd silently. ⭐⭐ Count **TLE lines, never HTTP
    status** — Celestrak answers a bad GROUP with `200 OK` and an `Invalid query` body.
 2. **Pass dashboard** — the actual deliverable. See `design/interface-concepts.html`.
-3. ~~Rotator bridge~~ — cut, see above.
+3. **Rotator** — cut in August, back in November 2026 as a network driver; see above.
 
 **Out of scope:** SGP4, TLE propagation, pass prediction, transmit control. Not an
 AetherSDR feature either — it *consumes* AE the way Shack-Bench does.
